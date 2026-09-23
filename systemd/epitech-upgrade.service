@@ -1,0 +1,6 @@
+[Unit]
+Description=Upgrade Epitech tooling (dump parity)
+
+[Service]
+Type=oneshot
+ExecStart=%h/.local/bin/epitech-upgrade

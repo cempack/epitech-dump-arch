@@ -1,0 +1,277 @@
+#!/usr/bin/env bash
+# epitech-upgrade — keep Epitech tooling in sync with the school dump.
+#
+# Managed here (installed under ~/.local, no root needed):
+#   epiclang, banana   binaries track the Epitech PPA — the same .debs
+#                      dump.sh installs (their GitHub repos are private,
+#                      the PPA is the school's distribution channel).
+#   epitech-emacs      config tracks GitHub HEAD (Epitech/epitech-emacs).
+#   vim-epitech        config tracks GitHub HEAD (Epitech/vim-epitech).
+# Checked only (owned by pacman/yay, never touched):
+#   criterion, teams-for-linux.
+#
+# Usage: epitech-upgrade [--check] [--force] [--help]
+#   --check   report status without changing anything
+#   --force   reinstall everything even if up to date
+
+set -u
+
+PREFIX="${HOME}/.local"
+STATE_DIR="${PREFIX}/share/epitech-upgrade"
+BACKUP_DIR="${STATE_DIR}/backups"
+PPA_API="https://api.launchpad.net/1.0/~epitech/+archive/ubuntu/ppa"
+PPA_SERIES="https://api.launchpad.net/1.0/ubuntu/resolute/amd64"
+PPA_FILES="https://launchpad.net/~epitech/+archive/ubuntu/ppa/+files"
+
+CHECK_ONLY=0
+FORCE=0
+FAILED=()
+
+log()  { printf '%s\n' "$*"; }
+ok()   { printf '  [ok] %s\n' "$*"; }
+info() { printf '  [..] %s\n' "$*"; }
+warn() { printf '  [!!] %s\n' "$*"; }
+fail() { printf '  [FAIL] %s\n' "$*"; FAILED+=("$1"); }
+
+need_cmd() {
+    command -v "$1" >/dev/null 2>&1 || { log "missing required command: $1"; exit 2; }
+}
+
+get_stamp() { [ -f "${STATE_DIR}/$1" ] && cat "${STATE_DIR}/$1" || echo ""; }
+set_stamp() { mkdir -p "$STATE_DIR"; printf '%s' "$2" > "${STATE_DIR}/$1"; }
+
+# Keep the last 3 backups of a file or directory.
+rotate_backup() {
+    local src="$1" name="$2" i
+    [ -e "$src" ] || return 0
+    mkdir -p "$BACKUP_DIR"
+    rm -rf "${BACKUP_DIR}/${name}.3"
+    for i in 2 1; do
+        [ -e "${BACKUP_DIR}/${name}.$i" ] && mv "${BACKUP_DIR}/${name}.$i" "${BACKUP_DIR}/${name}.$((i + 1))"
+    done
+    cp -r "$src" "${BACKUP_DIR}/${name}.1"
+}
+
+# Latest published version of a PPA binary package (retries; prints version).
+ppa_latest_version() {
+    local pkg="$1" attempt out ver
+    for attempt in 1 2 3; do
+        out=$(curl -fsSL --max-time 30 \
+            "${PPA_API}?ws.op=getPublishedBinaries&binary_name=${pkg}&distro_arch_series=${PPA_SERIES}&exact_match=true&status=Published" 2>/dev/null) \
+        && ver=$(printf '%s' "$out" | python3 -c \
+            "import json,sys; print(json.load(sys.stdin)['entries'][0]['binary_package_version'])" 2>/dev/null) \
+        && [ -n "$ver" ] && { printf '%s' "$ver"; return 0; }
+        sleep 2
+    done
+    return 1
+}
+
+download_deb() {
+    local pkg="$1" ver="$2" dest="$3"
+    curl -fsSL --max-time 120 --retry 2 \
+        -o "$dest" "${PPA_FILES}/${pkg}_${ver}_amd64.deb" 2>/dev/null
+}
+
+patch_epiclang_py() {
+    # Add the user plugin dir (idempotent); system dirs stay untouched.
+    python3 - "$1" <<'EOF'
+import sys
+p = sys.argv[1]
+s = open(p).read()
+if '~/.local/lib/epiclang/plugins' in s:
+    sys.exit(0)
+old = "EPICLANG_PLUGINS_DIRS = [\n    '/usr/lib/epiclang/plugins',\n    '/usr/local/lib/epiclang/plugins',\n]"
+new = "EPICLANG_PLUGINS_DIRS = [\n    '/usr/lib/epiclang/plugins',\n    '/usr/local/lib/epiclang/plugins',\n    os.path.expanduser('~/.local/lib/epiclang/plugins'),\n]"
+assert old in s, "upstream epiclang.py layout changed"
+open(p, 'w').write(s.replace(old, new))
+EOF
+}
+
+verify_epiclang() {
+    local tmp="$1" out
+    "${PREFIX}/bin/epiclang" --version >/dev/null 2>&1 || return 1
+    printf 'int main(void)\n{\n    return 0;\n}\n' > "${tmp}/smoke.c"
+    out=$("${PREFIX}/bin/epiclang" -fsyntax-only "${tmp}/smoke.c" 2>&1) || true
+    printf '%s' "$out" | grep -qi "unable to load plugin" && return 1
+    return 0
+}
+
+do_epiclang() {
+    local tmp="$1" ver stamp deb
+    log "epiclang:"
+    ver=$(ppa_latest_version epiclang) || { fail "epiclang (version lookup failed)"; return; }
+    stamp=$(get_stamp epiclang)
+    if [ "$ver" = "$stamp" ] && [ "$FORCE" -eq 0 ]; then ok "up to date ($ver)"; return; fi
+    [ "$CHECK_ONLY" -eq 1 ] && { info "update available: ${stamp:-none} -> $ver"; return; }
+    info "installing $ver..."
+    deb="${tmp}/epiclang.deb"
+    download_deb epiclang "$ver" "$deb" || { fail "epiclang (download failed)"; return; }
+    rotate_backup "${PREFIX}/bin/epiclang" epiclang-bin
+    rotate_backup "${PREFIX}/bin/epiclang.py" epiclang-py
+    bsdtar -xOf "$deb" ./data.tar.zst 2>/dev/null | bsdtar -xOf - ./usr/bin/epiclang 2>/dev/null > "${PREFIX}/bin/epiclang" \
+        || { fail "epiclang (extract failed)"; return; }
+    bsdtar -xOf "$deb" ./data.tar.zst 2>/dev/null | bsdtar -xOf - ./usr/bin/epiclang.py 2>/dev/null > "${PREFIX}/bin/epiclang.py" \
+        || { fail "epiclang (extract failed)"; return; }
+    chmod +x "${PREFIX}/bin/epiclang"
+    patch_epiclang_py "${PREFIX}/bin/epiclang.py" || { fail "epiclang (patch failed)"; return; }
+    verify_epiclang "$tmp" || { fail "epiclang (verification failed)"; return; }
+    set_stamp epiclang "$ver"
+    ok "installed $ver"
+}
+
+do_banana() {
+    local tmp="$1" ver stamp deb soname
+    log "banana-coding-style-checker:"
+    ver=$(ppa_latest_version banana-coding-style-checker) || { fail "banana (version lookup failed)"; return; }
+    stamp=$(get_stamp banana)
+    if [ "$ver" = "$stamp" ] && [ "$FORCE" -eq 0 ]; then ok "up to date ($ver)"; return; fi
+    [ "$CHECK_ONLY" -eq 1 ] && { info "update available: ${stamp:-none} -> $ver"; return; }
+    info "installing $ver..."
+    deb="${tmp}/banana.deb"
+    download_deb banana-coding-style-checker "$ver" "$deb" || { fail "banana (download failed)"; return; }
+    rotate_backup "${PREFIX}/bin/banana-check-repo" banana-check-repo
+    rotate_backup "${PREFIX}/lib/epiclang/plugins/epitech-plugin-banana.so" banana-so
+    mkdir -p "${PREFIX}/lib/epiclang/plugins"
+    bsdtar -xOf "$deb" ./data.tar.zst 2>/dev/null | bsdtar -xOf - ./usr/bin/banana-check-repo 2>/dev/null > "${PREFIX}/bin/banana-check-repo" \
+        || { fail "banana (extract failed)"; return; }
+    soname="usr/lib/epiclang-plugin-banana.so.${ver}"
+    bsdtar -xOf "$deb" ./data.tar.zst 2>/dev/null | bsdtar -xOf - "./${soname}" 2>/dev/null > "${PREFIX}/lib/epiclang/plugins/epitech-plugin-banana.so" \
+        || { fail "banana (extract failed)"; return; }
+    chmod +x "${PREFIX}/bin/banana-check-repo"
+    "${PREFIX}/bin/banana-check-repo" --help >/dev/null 2>&1 || { fail "banana (verification failed)"; return; }
+    verify_epiclang "$tmp" || { fail "banana (plugin load check failed)"; return; }
+    set_stamp banana "$ver"
+    ok "installed $ver"
+}
+
+force_elisp_cookie() {
+    # First-line lexical-binding cookie on every .el (idempotent).
+    local f
+    for f in "$1"/*.el "$1"/*/*.el; do
+        [ -f "$f" ] || continue
+        head -n 1 "$f" | grep -q "lexical-binding" || sed -i '1s/.*/;; -*- lexical-binding: t; -*-/' "$f"
+    done
+}
+
+do_emacs_cfg() {
+    local tmp="$1" dir head stamp out
+    log "epitech-emacs config (GitHub):"
+    dir="${tmp}/epitech-emacs"
+    git clone -q --depth 1 https://github.com/Epitech/epitech-emacs.git "$dir" 2>/dev/null \
+        || { fail "epitech-emacs (clone failed)"; return; }
+    head=$(git -C "$dir" rev-parse HEAD)
+    stamp=$(get_stamp epitech-emacs)
+    if [ "$head" = "$stamp" ] && [ "$FORCE" -eq 0 ]; then ok "up to date ($head)"; return; fi
+    [ "$CHECK_ONLY" -eq 1 ] && { info "update available: ${stamp:-none} -> $head"; return; }
+    info "installing $head..."
+    rotate_backup "${HOME}/.emacs.d/lisp/epitech" emacs-epitech
+    rotate_backup "${HOME}/.emacs.d/lisp/site-start.d" emacs-site-start
+    mkdir -p "${HOME}/.emacs.d/lisp/epitech" "${HOME}/.emacs.d/lisp/site-start.d"
+    cp -r "${dir}/src/epitech/." "${HOME}/.emacs.d/lisp/epitech/" \
+        || { fail "epitech-emacs (install failed)"; return; }
+    cp -r "${dir}/src/site-start.d/." "${HOME}/.emacs.d/lisp/site-start.d/" \
+        || { fail "epitech-emacs (install failed)"; return; }
+    force_elisp_cookie "${HOME}/.emacs.d/lisp/epitech"
+    force_elisp_cookie "${HOME}/.emacs.d/lisp/site-start.d"
+    if ! grep -q "site-start.d/epitech-init.el" "${HOME}/.emacs" 2>/dev/null; then
+        cat >> "${HOME}/.emacs" <<'EOF'
+;;
+;; Epitech configuration
+;;
+(add-to-list 'load-path "~/.emacs.d/lisp")
+(load "site-start.d/epitech-init.el")
+EOF
+    fi
+    out=$(emacs --batch --eval '(message "INIT-OK")' 2>&1) || { fail "epitech-emacs (emacs failed to start)"; return; }
+    printf '%s' "$out" | grep -qi "lexical-binding" && { fail "epitech-emacs (lexical-binding warning present)"; return; }
+    set_stamp epitech-emacs "$head"
+    ok "installed $head"
+}
+
+do_vim_cfg() {
+    local tmp="$1" dir head stamp
+    log "vim-epitech config (GitHub):"
+    dir="${tmp}/vim-epitech"
+    git clone -q --depth 1 https://github.com/Epitech/vim-epitech.git "$dir" 2>&1 | grep -v "^$" || true
+    [ -f "${dir}/epitech.vim" ] || { fail "vim-epitech (clone failed)"; return; }
+    head=$(git -C "$dir" rev-parse HEAD)
+    stamp=$(get_stamp vim-epitech)
+    if [ "$head" = "$stamp" ] && [ "$FORCE" -eq 0 ]; then ok "up to date ($head)"; return; fi
+    [ "$CHECK_ONLY" -eq 1 ] && { info "update available: ${stamp:-none} -> $head"; return; }
+    info "installing $head..."
+    rotate_backup "${HOME}/.vim/epitech.vim" vim-epitech-vim
+    mkdir -p "${HOME}/.vim"
+    cp "${dir}/epitech.vim" "${HOME}/.vim/epitech.vim" || { fail "vim-epitech (install failed)"; return; }
+    if ! grep -q "epitech.vim" "${HOME}/.vimrc" 2>/dev/null; then
+        cat >> "${HOME}/.vimrc" <<EOF
+""
+"" Epitech configuration
+""
+
+if filereadable(glob("$HOME/.vim/epitech.vim"))
+	source $HOME/.vim/epitech.vim
+else
+	echoerr "Cant find epitech.vim configuration file"
+endif
+EOF
+    fi
+    timeout 15 vim -es -c 'quit' >/dev/null 2>&1 || { fail "vim-epitech (vim failed to start)"; return; }
+    set_stamp vim-epitech "$head"
+    ok "installed $head"
+}
+
+do_criterion_check() {
+    local installed latest
+    log "criterion (pacman-owned, check only):"
+    installed=$(pacman -Q criterion 2>/dev/null | awk '{print $2}' | cut -d- -f1) || { warn "not installed"; return; }
+    latest=$(curl -sIL --max-time 30 -o /dev/null -w '%{url_effective}' \
+        "https://github.com/Snaipe/Criterion/releases/latest" 2>/dev/null | grep -o '[^/]*$' | sed 's/^v//')
+    if [ -z "$latest" ]; then warn "could not check latest release (installed: $installed)"; return; fi
+    if [ "$installed" = "$latest" ]; then ok "up to date ($installed)"; else info "installed $installed, latest $latest — run: yay -Syu"; fi
+}
+
+do_teams_check() {
+    log "teams-for-linux (yay-owned, check only):"
+    if ! pacman -Q teams-for-linux-bin >/dev/null 2>&1; then warn "not installed — run: yay -S teams-for-linux-bin"; return; fi
+    if command -v yay >/dev/null 2>&1 && yay -Qua 2>/dev/null | grep -qi "teams-for-linux"; then
+        info "update available — run: yay -Syu"
+    else
+        ok "up to date ($(pacman -Q teams-for-linux-bin | awk '{print $2}'))"
+    fi
+}
+
+usage() { sed -n '2,/^$/p' "$0" | sed 's/^# //; s/^#//'; }
+
+for arg in "$@"; do
+    case "$arg" in
+        --check) CHECK_ONLY=1 ;;
+        --force) FORCE=1 ;;
+        -h|--help) usage; exit 0 ;;
+        *) log "unknown option: $arg"; usage; exit 2 ;;
+    esac
+done
+
+need_cmd curl
+need_cmd python3
+need_cmd bsdtar
+need_cmd git
+need_cmd emacs
+need_cmd vim
+
+TMPDIR=$(mktemp -d)
+trap 'rm -rf "$TMPDIR"' EXIT
+
+do_epiclang "$TMPDIR"
+do_banana "$TMPDIR"
+do_emacs_cfg "$TMPDIR"
+do_vim_cfg "$TMPDIR"
+do_criterion_check
+do_teams_check
+
+log ""
+if [ "${#FAILED[@]}" -eq 0 ]; then
+    log "All Epitech tooling up to date."
+else
+    log "FAILURES: ${FAILED[*]}"
+    exit 1
+fi
