@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." >/dev/null 2>&1 && pwd)"
+
+bash -n "${REPO_DIR}/install.sh" "${REPO_DIR}/epitech-upgrade" \
+    "${REPO_DIR}/lib/neovim.sh" "${REPO_DIR}/test/install-neovim"
+
+while IFS= read -r file; do
+    luac -p "$file"
+done < <(find "${REPO_DIR}/nvim" "${REPO_DIR}/test" -type f -name '*.lua' -print)
+
+EPITECH_DUMP_ARCH_REPO="$REPO_DIR" nvim --clean --headless -u NONE \
+    -l "${REPO_DIR}/test/nvim.lua"
+
+"${REPO_DIR}/test/install-neovim"

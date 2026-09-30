@@ -2,7 +2,7 @@
 # epitech-dump-arch — unofficial Epitech "dump" installer for Arch Linux / Omarchy.
 #
 # Gives you dump.sh parity without Ubuntu: system packages, AUR packages,
-# epiclang + banana coding-style checker, Epitech emacs/vim configs, launchers,
+# epiclang + banana coding-style checker, Epitech editor configs, launchers,
 # and a weekly systemd timer that keeps the Epitech bits up to date.
 #
 # Usage:
@@ -55,8 +55,8 @@ if [ "$NO_SYS" -eq 0 ]; then
     sudo pacman -S --needed --noconfirm \
         base-devel git gcovr csfml libjpeg-turbo libx11 freetype2 libvorbis \
         openal libxi libxrandr xcb-util-image xcb-util criterion valgrind \
-        x264 tree unzip curl net-tools tcsh emacs vim \
-        clang21 llvm21-libs compiler-rt21 \
+        x264 tree unzip curl net-tools tcsh emacs vim neovim ripgrep fd \
+        clang clang21 llvm21-libs compiler-rt21 \
         || die "pacman install failed"
     ok "pacman packages installed"
 
@@ -85,9 +85,13 @@ else
     info "skipping system packages (--no-sys)"
 fi
 
-for cmd in curl git python3 bsdtar emacs vim; do
+for cmd in curl git python3 bsdtar emacs vim nvim tar; do
     command -v "$cmd" >/dev/null 2>&1 || die "missing required command: $cmd (run without --no-sys to install it)"
 done
+if ! nvim --clean --headless -u NONE \
+    "+lua if vim.fn.has('nvim-0.11.2') == 0 then vim.cmd('cquit 1') end" +qa >/dev/null 2>&1; then
+    die "Neovim 0.11.2 or newer is required by LazyVim"
+fi
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" >/dev/null 2>&1 && pwd)"
 if [ -f "${SCRIPT_DIR}/epitech-upgrade" ]; then
@@ -95,13 +99,20 @@ if [ -f "${SCRIPT_DIR}/epitech-upgrade" ]; then
 else
     log "fetching installer repo..."
     if [ -d "${LOCAL_REPO_DIR}/.git" ]; then
-        git -C "$LOCAL_REPO_DIR" pull -q --ff-only 2>/dev/null || true
+        git -C "$LOCAL_REPO_DIR" pull -q --ff-only \
+            || die "could not update ${LOCAL_REPO_DIR}; inspect the checkout and retry"
+    elif [ -e "$LOCAL_REPO_DIR" ] && ! [ -d "$LOCAL_REPO_DIR" ]; then
+        die "${LOCAL_REPO_DIR} exists and is not a directory"
+    elif [ -d "$LOCAL_REPO_DIR" ] && [ -n "$(find "$LOCAL_REPO_DIR" -mindepth 1 -maxdepth 1 -print -quit)" ]; then
+        die "${LOCAL_REPO_DIR} contains unrelated files; leaving it unchanged"
     else
-        rm -rf "$LOCAL_REPO_DIR"
         git clone -q --depth 1 "$REPO_URL" "$LOCAL_REPO_DIR" || die "repo clone failed"
     fi
     REPO_DIR="$LOCAL_REPO_DIR"
 fi
+
+# shellcheck source=lib/neovim.sh
+. "${REPO_DIR}/lib/neovim.sh" || die "could not load the Neovim installer"
 
 log "Epitech tooling:"
 mkdir -p "${HOME}/.local/bin"
@@ -116,6 +127,8 @@ exec emacs -L "$HOME/.emacs.d/lisp" -l site-start.d/epitech-init.el "$@"
 EOF
 chmod +x "${HOME}/.local/bin/epitech-emacs"
 ok "epitech-emacs launcher installed"
+
+install_lazyvim
 
 if [ -x /opt/teams-for-linux/teams-for-linux ]; then
     ln -sf /opt/teams-for-linux/teams-for-linux "${HOME}/.local/bin/teams-for-linux"
@@ -142,5 +155,7 @@ case ":${PATH}:" in
 esac
 log ""
 log "Epitech dump installed. Commands: epiclang, banana-check-repo,"
-log "  epitech-emacs, epitech-upgrade, teams-for-linux."
-log "Re-run this installer or 'epitech-upgrade' anytime to update."
+log "  epitech-emacs, epitech-upgrade, teams-for-linux, nvim."
+log "LazyVim: <leader>cf formats C; <leader>cH inserts an Epitech header."
+log "Re-run this installer to update integrations; use 'epitech-upgrade'"
+log "for the upstream Epitech tools."
