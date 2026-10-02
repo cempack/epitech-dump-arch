@@ -1,0 +1,47 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." >/dev/null 2>&1 && pwd)"
+TEST_ROOT=$(mktemp -d)
+trap 'rm -rf "$TEST_ROOT"' EXIT
+
+XDG_CONFIG_HOME="${TEST_ROOT}/config"
+XDG_DATA_HOME="${TEST_ROOT}/data"
+SOURCE_REPO="${TEST_ROOT}/source"
+EPITECH_REPO_URL="file://${SOURCE_REPO}"
+export XDG_CONFIG_HOME XDG_DATA_HOME EPITECH_REPO_URL
+
+mkdir -p "${SOURCE_REPO}/lib" "${XDG_CONFIG_HOME}/nvim/lua/config" \
+    "${XDG_CONFIG_HOME}/nvim/lua/plugins" \
+    "${XDG_DATA_HOME}/nvim/epitech-upgrade/nvim"
+cp "${REPO_DIR}/lib/neovim.sh" "${SOURCE_REPO}/lib/"
+cp -R "${REPO_DIR}/nvim" "${SOURCE_REPO}/nvim"
+git -C "$SOURCE_REPO" init -q
+git -C "$SOURCE_REPO" add .
+git -C "$SOURCE_REPO" -c user.name=test -c user.email=test@example.com commit -qm source
+
+printf '%s\n' 'require("config.lazy")' > "${XDG_CONFIG_HOME}/nvim/init.lua"
+printf '%s\n' '{ "LazyVim/LazyVim" }' > "${XDG_CONFIG_HOME}/nvim/lua/config/lazy.lua"
+cp "${REPO_DIR}/nvim/lazyvim-spec.lua" "${XDG_CONFIG_HOME}/nvim/lua/plugins/epitech-dump-arch.lua"
+cp -R "${REPO_DIR}/nvim/epitech.nvim" "${XDG_DATA_HOME}/nvim/epitech-upgrade/nvim/epitech.nvim"
+PLUGIN="${XDG_DATA_HOME}/nvim/epitech-upgrade/nvim/epitech.nvim/lua/epitech/init.lua"
+printf '%s\n' '-- old managed plugin' > "$PLUGIN"
+LAZY_CONFIG_HASH=$(sha256sum "${XDG_CONFIG_HOME}/nvim/lua/config/lazy.lua")
+
+# Sourcing defines the updater functions without running unrelated PPA upgrades.
+# shellcheck source=../epitech-upgrade
+. "${REPO_DIR}/epitech-upgrade"
+
+CHECK_ONLY=1
+mkdir -p "${TEST_ROOT}/check"
+do_nvim_cfg "${TEST_ROOT}/check"
+grep -q '^-- old managed plugin$' "$PLUGIN"
+
+CHECK_ONLY=0
+mkdir -p "${TEST_ROOT}/apply"
+do_nvim_cfg "${TEST_ROOT}/apply"
+cmp -s "${REPO_DIR}/nvim/epitech.nvim/lua/epitech/init.lua" "$PLUGIN"
+test "$LAZY_CONFIG_HASH" = "$(sha256sum "${XDG_CONFIG_HOME}/nvim/lua/config/lazy.lua")"
+test "${#FAILED[@]}" -eq 0
+
+printf '%s\n' 'Neovim upgrade tests passed'

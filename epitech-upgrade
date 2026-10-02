@@ -7,6 +7,8 @@
 #                      the PPA is the school's distribution channel).
 #   epitech-emacs      config tracks GitHub HEAD (Epitech/epitech-emacs).
 #   vim-epitech        config tracks GitHub HEAD (Epitech/vim-epitech).
+#   epitech.nvim       managed LazyVim integration tracks this project's HEAD.
+#                     LazyVim itself is never updated here.
 # Checked only (owned by pacman/yay, never touched):
 #   criterion, teams-for-linux.
 #
@@ -22,6 +24,7 @@ BACKUP_DIR="${STATE_DIR}/backups"
 PPA_API="https://api.launchpad.net/1.0/~epitech/+archive/ubuntu/ppa"
 PPA_SERIES="https://api.launchpad.net/1.0/ubuntu/resolute/amd64"
 PPA_FILES="https://launchpad.net/~epitech/+archive/ubuntu/ppa/+files"
+EPITECH_REPO_URL="${EPITECH_REPO_URL:-https://github.com/cempack/epitech-dump-arch.git}"
 
 CHECK_ONLY=0
 FORCE=0
@@ -220,6 +223,32 @@ EOF
     ok "installed $head"
 }
 
+do_nvim_cfg() {
+    local tmp="$1" dir="${1}/epitech-dump-arch"
+    local config_home="${XDG_CONFIG_HOME:-${HOME}/.config}"
+    local data_home="${XDG_DATA_HOME:-${HOME}/.local/share}"
+    local plugin_dir="${data_home}/nvim/epitech-upgrade/nvim/epitech.nvim"
+    local spec_file="${config_home}/nvim/lua/plugins/epitech-dump-arch.lua"
+
+    log "Neovim Epitech integration:"
+    if [ ! -f "${plugin_dir}/.epitech-dump-arch" ] \
+        || [ ! -f "$spec_file" ] \
+        || ! grep -q '^-- Managed by epitech-dump-arch' "$spec_file"; then
+        info "managed integration not installed; leaving Neovim unchanged"
+        return
+    fi
+
+    git clone -q --depth 1 "$EPITECH_REPO_URL" "$dir" 2>/dev/null \
+        || { fail "Neovim Epitech integration (repository download failed)"; return; }
+    [ -f "${dir}/lib/neovim.sh" ] \
+        || { fail "Neovim Epitech integration (installer library missing)"; return; }
+    # shellcheck source=lib/neovim.sh
+    . "${dir}/lib/neovim.sh" \
+        || { fail "Neovim Epitech integration (installer library failed to load)"; return; }
+    upgrade_managed_nvim "$dir" "$CHECK_ONLY" "$FORCE" \
+        || fail "Neovim Epitech integration (update failed)"
+}
+
 do_criterion_check() {
     local installed latest
     log "criterion (pacman-owned, check only):"
@@ -242,36 +271,44 @@ do_teams_check() {
 
 usage() { sed -n '2,/^$/p' "$0" | sed 's/^# //; s/^#//'; }
 
-for arg in "$@"; do
-    case "$arg" in
-        --check) CHECK_ONLY=1 ;;
-        --force) FORCE=1 ;;
-        -h|--help) usage; exit 0 ;;
-        *) log "unknown option: $arg"; usage; exit 2 ;;
-    esac
-done
+main() {
+    local arg
+    for arg in "$@"; do
+        case "$arg" in
+            --check) CHECK_ONLY=1 ;;
+            --force) FORCE=1 ;;
+            -h|--help) usage; return 0 ;;
+            *) log "unknown option: $arg"; usage; return 2 ;;
+        esac
+    done
 
-need_cmd curl
-need_cmd python3
-need_cmd bsdtar
-need_cmd git
-need_cmd emacs
-need_cmd vim
+    need_cmd curl
+    need_cmd python3
+    need_cmd bsdtar
+    need_cmd git
+    need_cmd emacs
+    need_cmd vim
 
-TMPDIR=$(mktemp -d)
-trap 'rm -rf "$TMPDIR"' EXIT
+    UPGRADE_TMP_DIR=$(mktemp -d)
+    trap 'rm -rf "$UPGRADE_TMP_DIR"' EXIT
 
-do_epiclang "$TMPDIR"
-do_banana "$TMPDIR"
-do_emacs_cfg "$TMPDIR"
-do_vim_cfg "$TMPDIR"
-do_criterion_check
-do_teams_check
+    do_epiclang "$UPGRADE_TMP_DIR"
+    do_banana "$UPGRADE_TMP_DIR"
+    do_emacs_cfg "$UPGRADE_TMP_DIR"
+    do_vim_cfg "$UPGRADE_TMP_DIR"
+    do_nvim_cfg "$UPGRADE_TMP_DIR"
+    do_criterion_check
+    do_teams_check
 
-log ""
-if [ "${#FAILED[@]}" -eq 0 ]; then
-    log "All Epitech tooling up to date."
-else
-    log "FAILURES: ${FAILED[*]}"
-    exit 1
+    log ""
+    if [ "${#FAILED[@]}" -eq 0 ]; then
+        log "All Epitech tooling up to date."
+    else
+        log "FAILURES: ${FAILED[*]}"
+        return 1
+    fi
+}
+
+if [ "${BASH_SOURCE[0]}" = "$0" ]; then
+    main "$@"
 fi

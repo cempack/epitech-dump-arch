@@ -25,7 +25,8 @@ cd epitech-dump-arch
 
 Re-running is safe (idempotent). `./install.sh --no-sys` skips the
 pacman/AUR/sudo steps and only installs user-space parts. With `--no-sys`,
-the required editors and command-line tools must already be installed.
+the required editors and command-line tools, including `clang-format` 21+, must
+already be installed.
 
 ## What you get
 
@@ -35,11 +36,27 @@ the required editors and command-line tools must already be installed.
 - Epitech emacs config + `epitech-emacs` launcher (tracked from GitHub)
 - Epitech vim config (tracked from GitHub)
 - Neovim + LazyVim configured for Epitech C development:
-  - C and `.h` files use the installed Epitech Vim indentation rules
-  - LazyVim's `<leader>cf` and its enabled format-on-save use the Epitech formatter
+  - C and `.h` editor settings mirror the installed Epitech Vim configuration
+  - LazyVim's `<leader>cf` and its enabled format-on-save use `clang-format`
+    with the bundled `epitech.clang-format` profile derived from the installed
+    Epitech C Coding Style PDF; no project `.clang-format` is created
+  - the formatter covers four-space indentation, braces, spacing, function
+    separation, line wrapping, and Banana C-G3 preprocessor nesting
   - `<leader>cH` / `:EpitechHeader` inserts an interactive Epitech header
+    using the current filetype's comment syntax: C, Makefile, shell/Python,
+    Lua, HTML, and many others. This follows the installed Epitech Vim
+    header styles where defined. Existing shebangs are preserved; a header
+    in the wrong comment style can be replaced after confirmation.
+  - Makefiles use `mbake` through Conform for formatting, including safe
+    assignment spacing while preserving recipe tabs and the Epitech banner.
+  - `<leader>cG` / `:EpitechGuard` wraps a named `.h` file in an include guard
+    derived from its filename (for example, `my_macro_abs.h` becomes
+    `MY_MACRO_ABS_H_`); an existing Epitech banner stays at the top
   - the header is preserved exactly when the rest of the file is formatted
   - LazyVim's clangd language extra is enabled
+- Formatting does not silently rewrite program logic to satisfy structural or
+  semantic Banana rules (such as function length, parameter count, or naming).
+  Run `epiclang` to check those requirements after formatting.
 - criterion, clang 21 and the system clang, gcc, gdb, valgrind, csfml, make, tcsh,
   tree, x264, net-tools, ripgrep, fd… (pacman)
 - `teams-for-linux` (AUR)
@@ -54,9 +71,12 @@ added under `lua/plugins/`. A non-LazyVim configuration is never overwritten;
 the installer reports that the Neovim integration was skipped.
 
 The bundled plugin is installed under
-`~/.local/share/nvim/epitech-upgrade/nvim/epitech.nvim`. Re-run `install.sh` to
-update the bundled plugin. The weekly updater continues to update the upstream
-Epitech Vim file that the Neovim formatter loads.
+`~/.local/share/nvim/epitech-upgrade/nvim/epitech.nvim`. The weekly
+`epitech-upgrade` timer refreshes this managed plugin and the upstream Epitech
+Vim file that its formatter loads. It does not update LazyVim itself or touch
+unmanaged Neovim files. `epitech-upgrade --check` only reports available updates.
+The installer also installs the pinned `mbake` Makefile formatter through `uv`.
+It does not run a LazyVim/plugin update.
 
 ## Updating
 

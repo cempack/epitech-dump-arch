@@ -20,6 +20,7 @@ return {
     opts = function(_, opts)
       opts.formatters_by_ft = opts.formatters_by_ft or {}
       opts.formatters_by_ft.c = { "epitech_vim" }
+      opts.formatters_by_ft.make = { "bake" }
       opts.formatters = opts.formatters or {}
       opts.formatters.epitech_vim = require("epitech").formatter()
     end,

@@ -4,7 +4,8 @@ set -euo pipefail
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." >/dev/null 2>&1 && pwd)"
 
 bash -n "${REPO_DIR}/install.sh" "${REPO_DIR}/epitech-upgrade" \
-    "${REPO_DIR}/lib/neovim.sh" "${REPO_DIR}/test/install-neovim"
+    "${REPO_DIR}/lib/neovim.sh" "${REPO_DIR}/test/install-neovim" \
+    "${REPO_DIR}/test/upgrade-neovim"
 
 while IFS= read -r file; do
     luac -p "$file"
@@ -12,5 +13,19 @@ done < <(find "${REPO_DIR}/nvim" "${REPO_DIR}/test" -type f -name '*.lua' -print
 
 EPITECH_DUMP_ARCH_REPO="$REPO_DIR" nvim --clean --headless -u NONE \
     -l "${REPO_DIR}/test/nvim.lua"
+EPITECH_DUMP_ARCH_REPO="$REPO_DIR" nvim --clean --headless -u NONE \
+    -l "${REPO_DIR}/test/header-filetypes.lua"
+if command -v mbake >/dev/null 2>&1; then
+    EPITECH_DUMP_ARCH_REPO="$REPO_DIR" nvim --clean --headless -u NONE \
+        -l "${REPO_DIR}/test/format-make.lua"
+fi
+
+if command -v epiclang >/dev/null 2>&1 && [ -f "${HOME}/.vim/epitech.vim" ]; then
+    EPITECH_DUMP_ARCH_REPO="$REPO_DIR" nvim --clean --headless -u NONE \
+        -l "${REPO_DIR}/test/format-guard.lua"
+    EPITECH_DUMP_ARCH_REPO="$REPO_DIR" nvim --clean --headless -u NONE \
+        -l "${REPO_DIR}/test/format-style.lua"
+fi
 
 "${REPO_DIR}/test/install-neovim"
+bash "${REPO_DIR}/test/upgrade-neovim"

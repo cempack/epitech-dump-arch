@@ -27,12 +27,15 @@ specs[2].init()
 specs[2].config()
 assert_equal(vim.filetype.match({ filename = "example.h" }), "c", "header filetype")
 assert(vim.api.nvim_get_commands({ builtin = false }).EpitechHeader, "EpitechHeader command")
+assert(vim.api.nvim_get_commands({ builtin = false }).EpitechGuard, "EpitechGuard command")
 local conform_opts = {}
 specs[3].opts(nil, conform_opts)
 assert_equal(conform_opts.formatters_by_ft.c, { "epitech_vim" }, "Conform C formatter")
+assert_equal(conform_opts.formatters_by_ft.make, { "bake" }, "Conform Makefile formatter")
 assert(conform_opts.formatters.epitech_vim, "custom formatter config")
 
 local answers = { "Day 08", "Copy string in allocated memory" }
+vim.bo.filetype = "c"
 vim.ui.input = function(_, callback)
   callback(table.remove(answers, 1))
 end
@@ -47,6 +50,60 @@ end
 epitech.insert_header()
 assert_equal(vim.api.nvim_buf_line_count(0), before, "duplicate header line count")
 assert_equal(notice, "This file already has an Epitech header", "duplicate header notice")
+
+local guard_buf = vim.api.nvim_create_buf(true, false)
+vim.api.nvim_set_current_buf(guard_buf)
+vim.api.nvim_buf_set_name(guard_buf, "/tmp/my_macro_abs.h")
+vim.api.nvim_buf_set_lines(guard_buf, 0, -1, false, vim.list_extend(vim.deepcopy(expected_header), {
+  "",
+  "#define ABS(value) ((value) < 0) ? -(value) : (value)",
+}))
+epitech.insert_guard()
+assert_equal(vim.api.nvim_buf_get_lines(guard_buf, 0, -1, false), vim.list_extend(vim.deepcopy(expected_header), {
+  "",
+  "#ifndef MY_MACRO_ABS_H_",
+  "    #define MY_MACRO_ABS_H_",
+  "",
+  "    #define ABS(value) ((value) < 0) ? -(value) : (value)",
+  "",
+  "#endif",
+}), "guard wraps content after Epitech header")
+assert_equal(vim.api.nvim_win_get_cursor(0), { 10, 0 }, "cursor placed inside guard")
+local guarded = vim.api.nvim_buf_get_lines(guard_buf, 0, -1, false)
+epitech.insert_guard()
+assert_equal(vim.api.nvim_buf_get_lines(guard_buf, 0, -1, false), guarded, "duplicate guard unchanged")
+assert_equal(notice, "This file already has an include guard", "duplicate guard notice")
+
+local empty_buf = vim.api.nvim_create_buf(true, false)
+vim.api.nvim_set_current_buf(empty_buf)
+vim.api.nvim_buf_set_name(empty_buf, "/tmp/simple.h")
+epitech.insert_guard()
+assert_equal(vim.api.nvim_buf_get_lines(empty_buf, 0, -1, false), {
+  "#ifndef SIMPLE_H_",
+  "    #define SIMPLE_H_",
+  "",
+  "#endif",
+}, "empty header guard")
+
+local source_buf = vim.api.nvim_create_buf(true, false)
+vim.api.nvim_set_current_buf(source_buf)
+vim.api.nvim_buf_set_name(source_buf, "/tmp/simple.c")
+epitech.insert_guard()
+assert_equal(vim.api.nvim_buf_get_lines(source_buf, 0, -1, false), { "" }, "non-header unchanged")
+assert_equal(notice, "Name this buffer as a .h file first", "non-header notice")
+
+local existing_buf = vim.api.nvim_create_buf(true, false)
+vim.api.nvim_set_current_buf(existing_buf)
+vim.api.nvim_buf_set_name(existing_buf, "/tmp/legacy.h")
+vim.api.nvim_buf_set_lines(existing_buf, 0, -1, false, {
+  "#ifndef LEGACY_INCLUDE_GUARD",
+  "#define LEGACY_INCLUDE_GUARD",
+  "",
+  "#endif",
+})
+local existing_lines = vim.api.nvim_buf_get_lines(existing_buf, 0, -1, false)
+epitech.insert_guard()
+assert_equal(vim.api.nvim_buf_get_lines(existing_buf, 0, -1, false), existing_lines, "existing custom guard unchanged")
 
 local vim_config = vim.fn.tempname()
 vim.fn.writefile({
@@ -86,7 +143,8 @@ assert_equal(result.stdout, table.concat({
   "** Copy string in allocated memory",
   "*/",
   "",
-  "int main(void){",
+  "int main(void)",
+  "{",
   "    return 0;",
   "}",
   "",
@@ -104,6 +162,11 @@ vim.api.nvim_create_user_command("EpitechHeader", "echo 'custom'", {
   force = true,
 })
 vim.keymap.set("n", "<leader>cH", function() end, { desc = "Custom header mapping" })
+vim.api.nvim_create_user_command("EpitechGuard", "echo 'custom guard'", {
+  desc = "Custom guard command",
+  force = true,
+})
+vim.keymap.set("n", "<leader>cG", function() end, { desc = "Custom guard mapping" })
 epitech.setup()
 assert_equal(
   vim.api.nvim_get_commands({ builtin = false }).EpitechHeader.definition,
@@ -112,5 +175,12 @@ assert_equal(
 )
 local custom_mapping = vim.fn.maparg("<leader>cH", "n", false, true)
 assert_equal(custom_mapping.desc, "Custom header mapping", "existing header mapping")
+assert_equal(
+  vim.api.nvim_get_commands({ builtin = false }).EpitechGuard.definition,
+  "echo 'custom guard'",
+  "existing guard command"
+)
+local custom_guard_mapping = vim.fn.maparg("<leader>cG", "n", false, true)
+assert_equal(custom_guard_mapping.desc, "Custom guard mapping", "existing guard mapping")
 
 print("Epitech Neovim tests passed")
