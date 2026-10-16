@@ -27,18 +27,39 @@ ensure_make_formatter() {
     ok "Makefile formatter mbake installed"
 }
 
+# The epitech.nvim plugin lives in its own repository and lazy.nvim installs it
+# from there; this project only manages the LazyVim spec that points to it.
+EPITECH_NVIM_LAZY_NAME="epitech.nvim"
+
+clang_format_supported() {
+    local version
+    command -v clang-format >/dev/null 2>&1 || return 1
+    version=$(clang-format --version | sed -n 's/.*version \([0-9][0-9]*\).*/\1/p' | head -n 1)
+    [ -n "$version" ] && [ "$version" -ge 21 ]
+}
+
+# Before epitech.nvim had its own repository, the installer copied it here.
+remove_legacy_plugin() {
+    local data_home="${XDG_DATA_HOME:-${HOME}/.local/share}"
+    local legacy_dir="${data_home}/nvim/epitech-upgrade/nvim/epitech.nvim"
+    if [ -f "${legacy_dir}/.epitech-dump-arch" ]; then
+        rm -rf "$legacy_dir"
+        rmdir "${data_home}/nvim/epitech-upgrade/nvim" "${data_home}/nvim/epitech-upgrade" 2>/dev/null || true
+        info "removed the old bundled copy of epitech.nvim"
+    fi
+}
+
 upgrade_managed_nvim() {
     local repo_dir="$1" check_only="${2:-0}" force="${3:-0}"
     local config_home="${XDG_CONFIG_HOME:-${HOME}/.config}"
     local data_home="${XDG_DATA_HOME:-${HOME}/.local/share}"
     local config_dir="${config_home}/nvim"
-    local plugin_dir="${data_home}/nvim/epitech-upgrade/nvim/epitech.nvim"
+    local plugin_dir="${data_home}/nvim/lazy/${EPITECH_NVIM_LAZY_NAME}"
     local spec_file="${config_dir}/lua/plugins/epitech-dump-arch.lua"
-    local plugin_source="${repo_dir}/nvim/epitech.nvim"
     local spec_source="${repo_dir}/nvim/lazyvim-spec.lua"
+    local local_head remote_head
 
     if ! is_lazyvim_config "$config_dir" \
-        || [ ! -f "${plugin_dir}/.epitech-dump-arch" ] \
         || [ ! -f "$spec_file" ] \
         || ! grep -q '^-- Managed by epitech-dump-arch' "$spec_file"; then
         info "managed integration not installed; leaving Neovim unchanged"
@@ -49,75 +70,64 @@ upgrade_managed_nvim() {
     elif ! command -v mbake >/dev/null 2>&1; then
         info "Makefile formatter mbake is not installed"
     fi
-    if [ ! -f "${plugin_source}/.epitech-dump-arch" ] \
-        || [ ! -f "${plugin_source}/epitech.clang-format" ] \
-        || [ ! -f "${plugin_source}/after/ftplugin/c.lua" ] \
-        || [ ! -f "${plugin_source}/lua/epitech/init.lua" ] \
-        || [ ! -f "$spec_source" ]; then
-        warn "bundled Neovim integration is incomplete"
+    if [ ! -f "$spec_source" ]; then
+        warn "bundled LazyVim plugin spec is missing"
         return 1
     fi
-    if ! command -v clang-format >/dev/null 2>&1 \
-        || ! clang-format --dump-config \
-            --style="file:${plugin_source}/epitech.clang-format" >/dev/null 2>&1; then
-        warn "clang-format cannot load the Epitech profile (version 21 or newer required)"
+    if ! clang_format_supported; then
+        warn "clang-format 21 or newer is required for the Epitech formatter"
         return 1
     fi
 
-    if cmp -s "${plugin_source}/.epitech-dump-arch" "${plugin_dir}/.epitech-dump-arch" \
-        && cmp -s "${plugin_source}/epitech.clang-format" "${plugin_dir}/epitech.clang-format" \
-        && cmp -s "${plugin_source}/after/ftplugin/c.lua" "${plugin_dir}/after/ftplugin/c.lua" \
-        && cmp -s "${plugin_source}/lua/epitech/init.lua" "${plugin_dir}/lua/epitech/init.lua" \
-        && cmp -s "$spec_source" "$spec_file" \
-        && [ "$force" -eq 0 ]; then
-        ok "up to date"
-        return 0
-    fi
     if [ "$check_only" -eq 1 ]; then
-        info "update available for the managed Epitech plugin"
+        if ! cmp -s "$spec_source" "$spec_file"; then
+            info "update available for the managed LazyVim spec"
+        fi
+        if [ ! -d "${plugin_dir}/.git" ]; then
+            info "epitech.nvim is not installed yet; lazy.nvim installs it when nvim starts"
+            return 0
+        fi
+        local_head=$(git -C "$plugin_dir" rev-parse HEAD 2>/dev/null) || local_head=""
+        remote_head=$(git -C "$plugin_dir" ls-remote origin HEAD 2>/dev/null | cut -f1) || remote_head=""
+        if [ -z "$remote_head" ]; then
+            warn "could not reach the epitech.nvim repository"
+        elif [ "$local_head" != "$remote_head" ]; then
+            info "update available for epitech.nvim"
+        else
+            ok "epitech.nvim up to date"
+        fi
         return 0
     fi
 
-    if ! cp "${plugin_source}/.epitech-dump-arch" "${plugin_dir}/.epitech-dump-arch" \
-        || ! cp "${plugin_source}/epitech.clang-format" "${plugin_dir}/epitech.clang-format" \
-        || ! cp "${plugin_source}/after/ftplugin/c.lua" "${plugin_dir}/after/ftplugin/c.lua" \
-        || ! cp "${plugin_source}/lua/epitech/init.lua" "${plugin_dir}/lua/epitech/init.lua" \
-        || ! cp "$spec_source" "$spec_file"; then
-        warn "could not update the managed Epitech plugin"
+    if [ "$force" -eq 1 ] || ! cmp -s "$spec_source" "$spec_file"; then
+        if ! cp "$spec_source" "$spec_file"; then
+            warn "could not update the managed LazyVim spec"
+            return 1
+        fi
+        ok "managed LazyVim spec updated"
+    fi
+    if ! timeout 300 nvim --headless "+Lazy! update ${EPITECH_NVIM_LAZY_NAME}" +qa >/dev/null 2>&1; then
+        warn "could not update epitech.nvim through lazy.nvim"
         return 1
     fi
-    ok "managed Epitech plugin updated (LazyVim unchanged)"
+    ok "epitech.nvim updated through lazy.nvim (other plugins unchanged)"
 }
 
 install_lazyvim() {
     local config_home="${XDG_CONFIG_HOME:-${HOME}/.config}"
-    local data_home="${XDG_DATA_HOME:-${HOME}/.local/share}"
     local config_dir="${config_home}/nvim"
-    local plugin_dir="${data_home}/nvim/epitech-upgrade/nvim/epitech.nvim"
     local spec_file="${config_dir}/lua/plugins/epitech-dump-arch.lua"
-    local plugin_source="${REPO_DIR}/nvim/epitech.nvim"
     local spec_source="${REPO_DIR}/nvim/lazyvim-spec.lua"
     local starter_url="${LAZYVIM_STARTER_URL:-https://github.com/LazyVim/starter.git}"
     local tmp
 
     log "Neovim/LazyVim:"
-    [ -f "${plugin_source}/.epitech-dump-arch" ] \
-        || { warn "bundled epitech.nvim plugin is missing"; return; }
-    [ -f "${plugin_source}/epitech.clang-format" ] \
-        || { warn "bundled Epitech clang-format profile is missing"; return; }
-    if ! command -v clang-format >/dev/null 2>&1 \
-        || ! clang-format --dump-config \
-            --style="file:${plugin_source}/epitech.clang-format" >/dev/null 2>&1; then
-        warn "clang-format cannot load the Epitech profile (version 21 or newer required)"
+    if ! clang_format_supported; then
+        warn "clang-format 21 or newer is required for the Epitech formatter"
         return
     fi
     [ -f "$spec_source" ] \
         || { warn "bundled LazyVim plugin spec is missing"; return; }
-    if [ -e "$plugin_dir" ] && [ ! -f "${plugin_dir}/.epitech-dump-arch" ]; then
-        warn "${plugin_dir} exists and is not managed by this installer"
-        warn "Neovim Epitech integration skipped"
-        return
-    fi
 
     if [ ! -e "$config_dir" ] || is_empty_dir "$config_dir"; then
         info "installing the official LazyVim starter..."
@@ -154,19 +164,15 @@ install_lazyvim() {
         return
     fi
 
-    if ! mkdir -p "${plugin_dir}/after/ftplugin" "${plugin_dir}/lua/epitech" \
-        "$(dirname "$spec_file")" \
-        || ! cp "${plugin_source}/.epitech-dump-arch" "${plugin_dir}/" \
-        || ! cp "${plugin_source}/epitech.clang-format" "${plugin_dir}/epitech.clang-format" \
-        || ! cp "${plugin_source}/after/ftplugin/c.lua" "${plugin_dir}/after/ftplugin/c.lua" \
-        || ! cp "${plugin_source}/lua/epitech/init.lua" "${plugin_dir}/lua/epitech/init.lua" \
-        || ! cp "$spec_source" "$spec_file"; then
-        warn "could not install the Epitech LazyVim plugin"
+    if ! mkdir -p "$(dirname "$spec_file")" || ! cp "$spec_source" "$spec_file"; then
+        warn "could not install the Epitech LazyVim plugin spec"
         return
     fi
-    ok "Epitech LazyVim plugin installed"
+    remove_legacy_plugin
+    ok "Epitech LazyVim plugin spec installed (epitech.nvim comes from GitHub)"
 
-    if timeout 180 nvim --headless \
+    if timeout 300 nvim --headless "+Lazy! install" +qa >/dev/null 2>&1 \
+        && timeout 180 nvim --headless \
         "+lua vim.wait(3000)" \
         "+lua local ok, conform = pcall(require, 'conform'); vim.bo.filetype = 'c'; local found = false; if ok then for _, formatter in ipairs(conform.list_formatters(0)) do found = found or formatter.name == 'epitech_vim' end end; if not found or vim.api.nvim_get_commands({ builtin = false }).EpitechHeader == nil then vim.cmd('cquit 1') end" \
         +qa >/dev/null 2>&1; then

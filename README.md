@@ -35,10 +35,11 @@ already be installed.
 - `banana-check-repo` — delivery checker (binaries, filenames)
 - Epitech emacs config + `epitech-emacs` launcher (tracked from GitHub)
 - Epitech vim config (tracked from GitHub)
-- Neovim + LazyVim configured for Epitech C development:
+- Neovim + LazyVim configured for Epitech C development, through the
+  [epitech.nvim](https://github.com/cempack/epitech.nvim) plugin:
   - C and `.h` editor settings mirror the installed Epitech Vim configuration
   - LazyVim's `<leader>cf` and its enabled format-on-save use `clang-format`
-    with the bundled `epitech.clang-format` profile derived from the installed
+    with the plugin's `epitech.clang-format` profile derived from the installed
     Epitech C Coding Style PDF; no project `.clang-format` is created
   - the formatter covers four-space indentation (including `case` labels
     inside a `switch`), braces, spacing (also inside `#define` bodies),
@@ -74,13 +75,14 @@ configuration is detected, only the managed Epitech plugin specification is
 added under `lua/plugins/`. A non-LazyVim configuration is never overwritten;
 the installer reports that the Neovim integration was skipped.
 
-The bundled plugin is installed under
-`~/.local/share/nvim/epitech-upgrade/nvim/epitech.nvim`. The weekly
-`epitech-upgrade` timer refreshes this managed plugin and the upstream Epitech
-Vim file that its formatter loads. It does not update LazyVim itself or touch
-unmanaged Neovim files. `epitech-upgrade --check` only reports available updates.
-The installer also installs the pinned `mbake` Makefile formatter through `uv`.
-It does not run a LazyVim/plugin update.
+lazy.nvim installs the plugin from GitHub like any other plugin. The weekly
+`epitech-upgrade` timer refreshes the managed spec, updates epitech.nvim with
+`:Lazy update epitech.nvim`, and refreshes the upstream Epitech Vim file that
+its formatter loads. It does not update LazyVim itself or other plugins, or
+touch unmanaged Neovim files. `epitech-upgrade --check` only reports available
+updates. The installer also installs the pinned `mbake` Makefile formatter
+through `uv`, and removes the copy of the plugin that older versions installed
+under `~/.local/share/nvim/epitech-upgrade/`.
 
 ## Updating
 

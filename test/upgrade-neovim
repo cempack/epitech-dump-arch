@@ -12,8 +12,7 @@ EPITECH_REPO_URL="file://${SOURCE_REPO}"
 export XDG_CONFIG_HOME XDG_DATA_HOME EPITECH_REPO_URL
 
 mkdir -p "${SOURCE_REPO}/lib" "${XDG_CONFIG_HOME}/nvim/lua/config" \
-    "${XDG_CONFIG_HOME}/nvim/lua/plugins" \
-    "${XDG_DATA_HOME}/nvim/epitech-upgrade/nvim"
+    "${XDG_CONFIG_HOME}/nvim/lua/plugins" "${TEST_ROOT}/bin"
 cp "${REPO_DIR}/lib/neovim.sh" "${SOURCE_REPO}/lib/"
 cp -R "${REPO_DIR}/nvim" "${SOURCE_REPO}/nvim"
 git -C "$SOURCE_REPO" init -q
@@ -22,10 +21,15 @@ git -C "$SOURCE_REPO" -c user.name=test -c user.email=test@example.com commit -q
 
 printf '%s\n' 'require("config.lazy")' > "${XDG_CONFIG_HOME}/nvim/init.lua"
 printf '%s\n' '{ "LazyVim/LazyVim" }' > "${XDG_CONFIG_HOME}/nvim/lua/config/lazy.lua"
-cp "${REPO_DIR}/nvim/lazyvim-spec.lua" "${XDG_CONFIG_HOME}/nvim/lua/plugins/epitech-dump-arch.lua"
-cp -R "${REPO_DIR}/nvim/epitech.nvim" "${XDG_DATA_HOME}/nvim/epitech-upgrade/nvim/epitech.nvim"
-PLUGIN="${XDG_DATA_HOME}/nvim/epitech-upgrade/nvim/epitech.nvim/lua/epitech/init.lua"
-printf '%s\n' '-- old managed plugin' > "$PLUGIN"
+SPEC="${XDG_CONFIG_HOME}/nvim/lua/plugins/epitech-dump-arch.lua"
+printf '%s\n' '-- Managed by epitech-dump-arch. Re-run the installer to update this file.' \
+    '-- old managed spec' > "$SPEC"
+
+# Record the lazy.nvim commands instead of starting Neovim.
+NVIM_LOG="${TEST_ROOT}/nvim.log"
+printf '#!/usr/bin/env sh\nprintf "%%s\\n" "$*" >> "%s"\nexit 0\n' "$NVIM_LOG" > "${TEST_ROOT}/bin/nvim"
+chmod +x "${TEST_ROOT}/bin/nvim"
+PATH="${TEST_ROOT}/bin:${PATH}"
 LAZY_CONFIG_HASH=$(sha256sum "${XDG_CONFIG_HOME}/nvim/lua/config/lazy.lua")
 
 # Sourcing defines the updater functions without running unrelated PPA upgrades.
@@ -35,12 +39,14 @@ LAZY_CONFIG_HASH=$(sha256sum "${XDG_CONFIG_HOME}/nvim/lua/config/lazy.lua")
 CHECK_ONLY=1
 mkdir -p "${TEST_ROOT}/check"
 do_nvim_cfg "${TEST_ROOT}/check"
-grep -q '^-- old managed plugin$' "$PLUGIN"
+grep -q '^-- old managed spec$' "$SPEC"
+test ! -e "$NVIM_LOG"
 
 CHECK_ONLY=0
 mkdir -p "${TEST_ROOT}/apply"
 do_nvim_cfg "${TEST_ROOT}/apply"
-cmp -s "${REPO_DIR}/nvim/epitech.nvim/lua/epitech/init.lua" "$PLUGIN"
+cmp -s "${REPO_DIR}/nvim/lazyvim-spec.lua" "$SPEC"
+grep -q '^--headless +Lazy! update epitech.nvim +qa$' "$NVIM_LOG"
 test "$LAZY_CONFIG_HASH" = "$(sha256sum "${XDG_CONFIG_HOME}/nvim/lua/config/lazy.lua")"
 test "${#FAILED[@]}" -eq 0
 

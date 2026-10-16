@@ -11,20 +11,22 @@ while IFS= read -r file; do
     luac -p "$file"
 done < <(find "${REPO_DIR}/nvim" "${REPO_DIR}/test" -type f -name '*.lua' -print)
 
+# The spec tests load the real plugin: a local checkout when EPITECH_NVIM_DIR is
+# set, otherwise a fresh clone of its repository.
+if [ -z "${EPITECH_NVIM_DIR:-}" ]; then
+    PLUGIN_TMP=$(mktemp -d)
+    trap 'rm -rf "$PLUGIN_TMP"' EXIT
+    git clone -q --depth 1 "${EPITECH_NVIM_URL:-https://github.com/cempack/epitech.nvim.git}" \
+        "${PLUGIN_TMP}/epitech.nvim"
+    EPITECH_NVIM_DIR="${PLUGIN_TMP}/epitech.nvim"
+fi
+export EPITECH_NVIM_DIR
+
 EPITECH_DUMP_ARCH_REPO="$REPO_DIR" nvim --clean --headless -u NONE \
     -l "${REPO_DIR}/test/nvim.lua"
-EPITECH_DUMP_ARCH_REPO="$REPO_DIR" nvim --clean --headless -u NONE \
-    -l "${REPO_DIR}/test/header-filetypes.lua"
 if command -v mbake >/dev/null 2>&1; then
     EPITECH_DUMP_ARCH_REPO="$REPO_DIR" nvim --clean --headless -u NONE \
         -l "${REPO_DIR}/test/format-make.lua"
-fi
-
-if command -v epiclang >/dev/null 2>&1 && [ -f "${HOME}/.vim/epitech.vim" ]; then
-    EPITECH_DUMP_ARCH_REPO="$REPO_DIR" nvim --clean --headless -u NONE \
-        -l "${REPO_DIR}/test/format-guard.lua"
-    EPITECH_DUMP_ARCH_REPO="$REPO_DIR" nvim --clean --headless -u NONE \
-        -l "${REPO_DIR}/test/format-style.lua"
 fi
 
 "${REPO_DIR}/test/install-neovim"

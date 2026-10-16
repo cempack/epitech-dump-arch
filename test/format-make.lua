@@ -1,5 +1,5 @@
 local repo = assert(vim.env.EPITECH_DUMP_ARCH_REPO)
-local plugin = repo .. "/nvim/epitech.nvim"
+local plugin = assert(vim.env.EPITECH_NVIM_DIR)
 vim.opt.runtimepath:prepend(plugin)
 package.path = plugin .. "/lua/?.lua;" .. plugin .. "/lua/?/init.lua;" .. package.path
 local specs = dofile(repo .. "/nvim/lazyvim-spec.lua")

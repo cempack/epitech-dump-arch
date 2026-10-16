@@ -7,8 +7,9 @@
 #                      the PPA is the school's distribution channel).
 #   epitech-emacs      config tracks GitHub HEAD (Epitech/epitech-emacs).
 #   vim-epitech        config tracks GitHub HEAD (Epitech/vim-epitech).
-#   epitech.nvim       managed LazyVim integration tracks this project's HEAD.
-#                     LazyVim itself is never updated here.
+#   epitech.nvim       plugin tracks GitHub HEAD (cempack/epitech.nvim) through
+#                      lazy.nvim; the LazyVim spec tracks this project's HEAD.
+#                      LazyVim and other plugins are never updated here.
 # Checked only (owned by pacman/yay, never touched):
 #   criterion, teams-for-linux.
 #
@@ -226,13 +227,10 @@ EOF
 do_nvim_cfg() {
     local tmp="$1" dir="${1}/epitech-dump-arch"
     local config_home="${XDG_CONFIG_HOME:-${HOME}/.config}"
-    local data_home="${XDG_DATA_HOME:-${HOME}/.local/share}"
-    local plugin_dir="${data_home}/nvim/epitech-upgrade/nvim/epitech.nvim"
     local spec_file="${config_home}/nvim/lua/plugins/epitech-dump-arch.lua"
 
     log "Neovim Epitech integration:"
-    if [ ! -f "${plugin_dir}/.epitech-dump-arch" ] \
-        || [ ! -f "$spec_file" ] \
+    if [ ! -f "$spec_file" ] \
         || ! grep -q '^-- Managed by epitech-dump-arch' "$spec_file"; then
         info "managed integration not installed; leaving Neovim unchanged"
         return

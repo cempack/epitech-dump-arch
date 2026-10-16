@@ -15,7 +15,9 @@ warn() { :; }
 . "${REPO_DIR}/lib/neovim.sh"
 
 mkdir -p "${TEST_ROOT}/bin" "${TEST_ROOT}/starter/lua/config"
-printf '#!/usr/bin/env sh\nexit 0\n' > "${TEST_ROOT}/bin/nvim"
+# Record the lazy.nvim commands the installer runs instead of starting Neovim.
+NVIM_LOG="${TEST_ROOT}/nvim.log"
+printf '#!/usr/bin/env sh\nprintf "%%s\\n" "$*" >> "%s"\nexit 0\n' "$NVIM_LOG" > "${TEST_ROOT}/bin/nvim"
 chmod +x "${TEST_ROOT}/bin/nvim"
 PATH="${TEST_ROOT}/bin:${PATH}"
 
@@ -31,31 +33,38 @@ XDG_DATA_HOME="${TEST_ROOT}/fresh/data"
 install_lazyvim
 
 SPEC="${XDG_CONFIG_HOME}/nvim/lua/plugins/epitech-dump-arch.lua"
-PLUGIN="${XDG_DATA_HOME}/nvim/epitech-upgrade/nvim/epitech.nvim"
+LEGACY="${XDG_DATA_HOME}/nvim/epitech-upgrade/nvim/epitech.nvim"
 test -f "${XDG_CONFIG_HOME}/nvim/init.lua"
 test -f "$SPEC"
-test -f "${PLUGIN}/.epitech-dump-arch"
-test -f "${PLUGIN}/epitech.clang-format"
-test -f "${PLUGIN}/lua/epitech/init.lua"
+test ! -e "$LEGACY"
 grep -q '^-- Managed by epitech-dump-arch' "$SPEC"
-EPITECH_SPEC_PATH="$SPEC" EPITECH_PLUGIN_PATH="$PLUGIN" "$REAL_NVIM" --clean --headless -u NONE \
-    "+lua local specs = dofile(vim.env.EPITECH_SPEC_PATH); assert(specs[2].dir == vim.env.EPITECH_PLUGIN_PATH)" \
+cmp -s "${REPO_DIR}/nvim/lazyvim-spec.lua" "$SPEC"
+grep -q '^--headless +Lazy! install +qa$' "$NVIM_LOG"
+EPITECH_SPEC_PATH="$SPEC" "$REAL_NVIM" --clean --headless -u NONE \
+    "+lua local specs = dofile(vim.env.EPITECH_SPEC_PATH); assert(specs[2][1] == 'cempack/epitech.nvim')" \
     +qa
 
 FIRST_SPEC_HASH=$(sha256sum "$SPEC")
-FIRST_PLUGIN_HASH=$(sha256sum "${PLUGIN}/lua/epitech/init.lua")
-FIRST_STYLE_HASH=$(sha256sum "${PLUGIN}/epitech.clang-format")
 install_lazyvim
 test "$FIRST_SPEC_HASH" = "$(sha256sum "$SPEC")"
-test "$FIRST_PLUGIN_HASH" = "$(sha256sum "${PLUGIN}/lua/epitech/init.lua")"
-test "$FIRST_STYLE_HASH" = "$(sha256sum "${PLUGIN}/epitech.clang-format")"
+
+# A copy left by the old bundled installer is removed; anything else is kept.
+mkdir -p "$LEGACY/lua/epitech"
+printf '%s\n' 'Managed by epitech-dump-arch.' > "${LEGACY}/.epitech-dump-arch"
+install_lazyvim
+test ! -e "$LEGACY"
+test ! -e "${XDG_DATA_HOME}/nvim/epitech-upgrade"
 
 LAZY_CONFIG_HASH=$(sha256sum "${XDG_CONFIG_HOME}/nvim/lua/config/lazy.lua")
-printf '%s\n' '-- stale managed plugin' > "${PLUGIN}/lua/epitech/init.lua"
+printf '%s\n' '-- Managed by epitech-dump-arch. Re-run the installer to update this file.' \
+    '-- stale managed spec' > "$SPEC"
+: > "$NVIM_LOG"
 upgrade_managed_nvim "$REPO_DIR" 1 0
-grep -q '^-- stale managed plugin$' "${PLUGIN}/lua/epitech/init.lua"
+grep -q '^-- stale managed spec$' "$SPEC"
+test ! -s "$NVIM_LOG"
 upgrade_managed_nvim "$REPO_DIR" 0 0
-cmp -s "${REPO_DIR}/nvim/epitech.nvim/lua/epitech/init.lua" "${PLUGIN}/lua/epitech/init.lua"
+cmp -s "${REPO_DIR}/nvim/lazyvim-spec.lua" "$SPEC"
+grep -q '^--headless +Lazy! update epitech.nvim +qa$' "$NVIM_LOG"
 test "$LAZY_CONFIG_HASH" = "$(sha256sum "${XDG_CONFIG_HOME}/nvim/lua/config/lazy.lua")"
 printf '%s\n' '-- unrelated spec' > "$SPEC"
 upgrade_managed_nvim "$REPO_DIR" 0 1
@@ -69,6 +78,7 @@ install_lazyvim
 test ! -e "${XDG_CONFIG_HOME}/nvim/lua/plugins/epitech-dump-arch.lua"
 grep -q '^-- unrelated config$' "${XDG_CONFIG_HOME}/nvim/init.lua"
 
+# Something else at the old bundled path is not this project's to remove.
 XDG_CONFIG_HOME="${TEST_ROOT}/collision/config"
 XDG_DATA_HOME="${TEST_ROOT}/collision/data"
 mkdir -p "${XDG_CONFIG_HOME}/nvim/lua/config" \
@@ -77,7 +87,7 @@ printf '%s\n' 'require("config.lazy")' > "${XDG_CONFIG_HOME}/nvim/init.lua"
 printf '%s\n' '{ "LazyVim/LazyVim" }' > "${XDG_CONFIG_HOME}/nvim/lua/config/lazy.lua"
 printf '%s\n' 'unrelated plugin' > "${XDG_DATA_HOME}/nvim/epitech-upgrade/nvim/epitech.nvim/owner"
 install_lazyvim
-test ! -e "${XDG_CONFIG_HOME}/nvim/lua/plugins/epitech-dump-arch.lua"
+test -f "${XDG_CONFIG_HOME}/nvim/lua/plugins/epitech-dump-arch.lua"
 grep -q '^unrelated plugin$' "${XDG_DATA_HOME}/nvim/epitech-upgrade/nvim/epitech.nvim/owner"
 
 XDG_CONFIG_HOME="${TEST_ROOT}/spec-collision/config"
@@ -88,6 +98,5 @@ printf '%s\n' '{ "LazyVim/LazyVim" }' > "${XDG_CONFIG_HOME}/nvim/lua/config/lazy
 printf '%s\n' '-- unrelated spec' > "${XDG_CONFIG_HOME}/nvim/lua/plugins/epitech-dump-arch.lua"
 install_lazyvim
 grep -q '^-- unrelated spec$' "${XDG_CONFIG_HOME}/nvim/lua/plugins/epitech-dump-arch.lua"
-test ! -e "${XDG_DATA_HOME}/nvim/epitech-upgrade/nvim/epitech.nvim"
 
 printf '%s\n' 'Neovim installer tests passed'
