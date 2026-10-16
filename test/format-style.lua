@@ -117,6 +117,97 @@ local ok, err = pcall(function()
   local switch_checked = vim.system({ "epiclang", "-x", "c", "-fsyntax-only", filename }, { text = true }):wait()
   assert(switch_checked.code == 0, switch_checked.stderr)
   assert(switch_checked.stderr == "", switch_checked.stderr)
+
+  -- Trailing spaces in the header, an over-long comment, blank lines inside a
+  -- function, and aligned string/ternary continuations.
+  local layout_input = table.concat({
+    "",
+    "/*",
+    "** EPITECH PROJECT, " .. os.date("%Y") .. "  ",
+    "** Formatter test",
+    "** File description:",
+    "** Arithmetic helpers ",
+    "*/",
+    "",
+    "#include <unistd.h>",
+    "",
+    "/*",
+    "** Returns the bigger of the two values after printing a message, which takes a long line to say.",
+    "*/",
+    "int show(int a,int b)",
+    "{",
+    "",
+    "    int big = a > b ? a : b;",
+    "    char const *message = \"this message is long enough that it does not fit on one line even on its own\";",
+    "    write(1, message, 75);",
+    "",
+    "",
+    "    big = big > 100 ? big - (a * 1000 + b * 1000 + 1000) : big + (a * 2000 + b * 2000);",
+    "",
+    "    return big;",
+    "}",
+    "",
+  }, "\n")
+  local layout_formatted = vim.system(command, { stdin = layout_input, text = true }):wait()
+  assert(layout_formatted.code == 0, layout_formatted.stderr)
+  local expected = table.concat({
+    "/*",
+    "** EPITECH PROJECT, " .. os.date("%Y"),
+    "** Formatter test",
+    "** File description:",
+    "** Arithmetic helpers",
+    "*/",
+    "",
+    "#include <unistd.h>",
+    "",
+    "/*",
+    "** Returns the bigger of the two values after printing a message, which takes a",
+    "** long line to say.",
+    "*/",
+    "int show(int a, int b)",
+    "{",
+    "    int big = a > b ? a : b;",
+    "    char const *message = \"this message is long enough that it does not fit \"",
+    "        \"on one line even on its own\";",
+    "",
+    "    write(1, message, 75);",
+    "    big = big > 100 ? big - (a * 1000 + b * 1000 + 1000)",
+    "        : big + (a * 2000 + b * 2000);",
+    "    return big;",
+    "}",
+    "",
+  }, "\n")
+  assert(layout_formatted.stdout == expected, layout_formatted.stdout)
+  local layout_twice = vim.system(command, { stdin = layout_formatted.stdout, text = true }):wait()
+  assert(layout_twice.stdout == layout_formatted.stdout, "layout formatting is not idempotent")
+  vim.fn.writefile(vim.split(layout_formatted.stdout:gsub("\n$", ""), "\n", { plain = true }), filename)
+  local layout_checked = vim.system({ "epiclang", "-x", "c", "-fsyntax-only", filename }, { text = true }):wait()
+  assert(layout_checked.code == 0, layout_checked.stderr)
+  assert(layout_checked.stderr == "", layout_checked.stderr)
+
+  -- C-L3 inside a #define body, including the padding after the macro name.
+  local header_name = tempdir .. "/arithmetic.h"
+  local macro_input = table.concat({
+    "/*",
+    "** EPITECH PROJECT, " .. os.date("%Y"),
+    "** Formatter test",
+    "** File description:",
+    "** Arithmetic helpers",
+    "*/",
+    "",
+    "#ifndef ARITHMETIC_H_",
+    "#define ARITHMETIC_H_",
+    "#define MAX(a,b)     ((a)>(b)?(a):(b))",
+    "#endif",
+    "",
+  }, "\n")
+  local macro_formatted = vim.system(command, { stdin = macro_input, text = true }):wait()
+  assert(macro_formatted.code == 0, macro_formatted.stderr)
+  assert(macro_formatted.stdout:find("\n    #define MAX%(a, b%) %(%(a%) > %(b%) %? %(a%) : %(b%)%)\n"), macro_formatted.stdout)
+  vim.fn.writefile(vim.split(macro_formatted.stdout:gsub("\n$", ""), "\n", { plain = true }), header_name)
+  local macro_checked = vim.system({ "epiclang", "-x", "c", "-fsyntax-only", header_name }, { text = true }):wait()
+  assert(macro_checked.code == 0, macro_checked.stderr)
+  assert(macro_checked.stderr == "", macro_checked.stderr)
 end)
 
 vim.fn.delete(tempdir, "rf")

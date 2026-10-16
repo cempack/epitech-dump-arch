@@ -40,8 +40,11 @@ already be installed.
   - LazyVim's `<leader>cf` and its enabled format-on-save use `clang-format`
     with the bundled `epitech.clang-format` profile derived from the installed
     Epitech C Coding Style PDF; no project `.clang-format` is created
-  - the formatter covers four-space indentation, braces, spacing, function
-    separation, line wrapping, and Banana C-G3 preprocessor nesting
+  - the formatter covers four-space indentation (including `case` labels
+    inside a `switch`), braces, spacing (also inside `#define` bodies),
+    function separation, line and comment wrapping, the single blank line
+    after a function's variable declarations, trailing spaces, and Banana C-G3
+    preprocessor nesting
   - `<leader>cH` / `:EpitechHeader` inserts an interactive Epitech header
     using the current filetype's comment syntax: C, Makefile, shell/Python,
     Lua, HTML, and many others. This follows the installed Epitech Vim
@@ -52,7 +55,8 @@ already be installed.
   - `<leader>cG` / `:EpitechGuard` wraps a named `.h` file in an include guard
     derived from its filename (for example, `my_macro_abs.h` becomes
     `MY_MACRO_ABS_H_`); an existing Epitech banner stays at the top
-  - the header is preserved exactly when the rest of the file is formatted
+  - the header is preserved when the rest of the file is formatted; only
+    trailing spaces are removed from it
   - LazyVim's clangd language extra is enabled
 - Formatting does not silently rewrite program logic to satisfy structural or
   semantic Banana rules (such as function length, parameter count, or naming).
