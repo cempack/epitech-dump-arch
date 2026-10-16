@@ -84,6 +84,39 @@ local ok, err = pcall(function()
   local control_checked = vim.system({ "epiclang", "-x", "c", "-fsyntax-only", filename }, { text = true }):wait()
   assert(control_checked.code == 0, control_checked.stderr)
   assert(control_checked.stderr == "", control_checked.stderr)
+
+  local switch_input = table.concat({
+    "/*",
+    "** EPITECH PROJECT, " .. os.date("%Y"),
+    "** Formatter test",
+    "** File description:",
+    "** Arithmetic helpers",
+    "*/",
+    "",
+    "int classify(int value){switch(value){case 0:return 1;case 1:{value++;return value;}default:break;}return 0;}",
+    "",
+  }, "\n")
+  local switch_formatted = vim.system(command, { stdin = switch_input, text = true }):wait()
+  assert(switch_formatted.code == 0, switch_formatted.stderr)
+  assert(switch_formatted.stdout:find(table.concat({
+    "    switch %(value%) {",
+    "        case 0:",
+    "            return 1;",
+    "        case 1:",
+    "            {",
+    "                value%+%+;",
+    "                return value;",
+    "            }",
+    "        default:",
+    "            break;",
+    "    }",
+  }, "\n")), switch_formatted.stdout)
+  local switch_twice = vim.system(command, { stdin = switch_formatted.stdout, text = true }):wait()
+  assert(switch_twice.stdout == switch_formatted.stdout, "switch formatting is not idempotent")
+  vim.fn.writefile(vim.split(switch_formatted.stdout:gsub("\n$", ""), "\n", { plain = true }), filename)
+  local switch_checked = vim.system({ "epiclang", "-x", "c", "-fsyntax-only", filename }, { text = true }):wait()
+  assert(switch_checked.code == 0, switch_checked.stderr)
+  assert(switch_checked.stderr == "", switch_checked.stderr)
 end)
 
 vim.fn.delete(tempdir, "rf")
