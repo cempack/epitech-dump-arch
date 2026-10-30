@@ -56,7 +56,7 @@ if [ "$NO_SYS" -eq 0 ]; then
         base-devel git gcovr csfml libjpeg-turbo libx11 freetype2 libvorbis \
         openal libxi libxrandr xcb-util-image xcb-util criterion valgrind \
         x264 tree unzip curl net-tools tcsh emacs vim neovim ripgrep fd \
-        clang clang21 llvm21-libs compiler-rt21 uv \
+        clang clang21 llvm21-libs compiler-rt21 uv gdb lazygit github-cli \
         || die "pacman install failed"
     ok "pacman packages installed"
 

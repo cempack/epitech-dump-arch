@@ -79,6 +79,7 @@ already be installed.
   Banana rules (such as function length, parameter count, or naming): the
   diagnostics, meters and fixes above are there for those.
 - criterion, clang 21 and the system clang, gcc, gdb, valgrind, csfml, make, tcsh,
+  lazygit, gh (GitHub CLI),
   tree, x264, net-tools, ripgrep, fd… (pacman)
 - `teams-for-linux` (AUR)
 - `epitech-upgrade` + weekly systemd timer — keeps school tooling current
