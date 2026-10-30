@@ -210,7 +210,7 @@ if ! command -v epiclang >/dev/null 2>&1; then
 elif [ -f "$CHECK_SCRIPT" ] && command -v nvim >/dev/null 2>&1; then
     style=$(nvim --clean --headless -l "$CHECK_SCRIPT" --ci "$CLONE/project" 2>&1)
     status=$?
-    summary=$(printf '%s\n' "$style" | tail -1)
+    summary=$(printf '%s\n' "$style" | tail -1 | sed 's/^Epitech check: //')
     if [ "$status" -ne 0 ]; then
         block "Banana: $summary"
         printf '%s\n' "$style" | grep -E '\[(Fatal|Major)\]' | head -10 | while IFS= read -r line; do note "$line"; done

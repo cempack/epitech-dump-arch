@@ -1,136 +1,203 @@
 # epitech-dump-arch
 
-Unofficial Epitech "dump" installer for **Arch Linux** (Omarchy included —
-same thing).
-
-The school's `dump.sh` only runs on Ubuntu 26.04. This gives you the same
-tooling on Arch: compilers, tests, the Banana coding-style checker, Epitech
-editor configs (Emacs, Vim, and Neovim/LazyVim), Teams, plus a weekly
-auto-updater. No root-owned hacks: school binaries live under `~/.local`,
-system libraries come from pacman.
-
-## Install
+The Epitech "dump" for **Arch Linux** and Omarchy: everything the school's
+`dump.sh` installs on Ubuntu, plus tools that check your project before the
+moulinette does. One command to install, and it updates itself every week.
+School binaries live in `~/.local`, system packages come from pacman: no
+root-owned hacks.
 
 ```sh
 bash <(curl -fsSL https://raw.githubusercontent.com/cempack/epitech-dump-arch/main/install.sh)
 ```
 
-Or clone and run:
+Then run `epitech-doctor` to see that everything works.
+
+## What's in it
+
+| | |
+|---|---|
+| **School tools** | `epiclang` with Banana and `banana-check-repo` (the same packages as the Epitech PPA), Criterion, CSFML, `tcsh`, Teams |
+| **Editors** | Neovim with LazyVim and [epitech.nvim](https://github.com/cempack/epitech.nvim), the Epitech Vim config, the Epitech Emacs config (`epitech-emacs`) |
+| **Development** | gcc, clang 21, gdb, valgrind, gcovr, make, lazygit, gh, ripgrep, fd, `mbake` |
+| **Its own commands** | `epitech-predeliver`, `epitech-mem`, `epitech-doctor`, `epitech-upgrade` |
+
+## Before you push: `epitech-predeliver`
+
+Run it in a project. It clones what you **committed** into a temporary
+directory and checks it the way the moulinette will:
+
+```
+$ epitech-predeliver --allowed "malloc, free, write, opendir, readdir, closedir, stat"
+epitech-predeliver /home/you/delivery/my_ls
+
+Repository
+  ✓ no uncommitted changes
+  ✗ source files never added to git (the build will miss them):
+    src/sort.c
+  ✓ everything is pushed to origin/main
+  ✗ tracked build products or temporary files (C-O1):
+    src/display.o
+
+Build (fresh clone of HEAD)
+  ✓ make succeeds
+  ✓ my_ls is built
+  ✗ a second 'make' rebuilds my_ls (relink): only rebuild when a source changes
+  ✓ clean and fclean remove what they should
+
+Coding style
+  ✗ Banana: 0 fatal · 2 major · 1 minor · 0 info · 3 hints
+
+Authorized functions
+  ✗ unauthorized functions: printf
+    printf: src/display.c
+
+Unit tests
+  ✓ tests pass: Tested: 14 | Passing: 14 | Failing: 0 | Crashing: 0
+    coverage lines: 81.2% (138 out of 170)
+
+✗ 5 problem(s) to fix before delivering
+```
+
+What it checks:
+
+- **Repository:** uncommitted changes, `.c`/`.h` files you never `git add`ed,
+  unpushed commits, tracked build products (`.o`, `vgcore.*`, `a.out`,
+  `unit_tests`, binaries, `.vscode/`…), large files, `banana-check-repo`.
+- **Build, on a fresh clone:** `make` works without your local leftovers,
+  the binary named by `NAME` appears, a second `make` doesn't relink,
+  `clean`, `fclean` and `re` do their job, compiler warnings.
+- **Coding style:** Banana on every tracked file.
+- **Authorized functions:** every function the binary calls from outside
+  (`nm`), against the subject's list. Give the list once with
+  `--allowed "malloc, free, write(2), sf*"` (copied from the subject, man
+  sections and `*` wildcards accepted); it's remembered for the project.
+  Calls the compiler writes itself (`printf("text\n")` becomes `puts`) are
+  recognized.
+- **Unit tests:** `unit_tests`/`tests_run` pass, with coverage when gcovr is
+  there.
+- **Memory**, with `--run "ARGS"`: the program run under valgrind.
+
+It exits 1 when something blocks the delivery, so it fits in a script or a
+git hook. `--no-tests` skips the tests, `--keep` keeps the clone to look at.
+
+## Leaks and crashes: `epitech-mem`
+
+```
+$ epitech-mem ./my_ls -l src
+...the program's own output...
+
+epitech-mem ./my_ls -l src  (exit 0)
+  ✗ Invalid read of size 1  ← display.c:42 in print_name
+  ✗ 64 bytes in 2 blocks are definitely lost  ← parse.c:18 in add_entry
+  ! Open file descriptor 3: src  ← list.c:12 in read_dir
+  2 problem(s), 3 error(s) in valgrind's summary (--full for the whole report)
+```
+
+Each problem points at the line of **your** code that caused it, not at
+libc. The program keeps the terminal, so interactive ones (a shell) work.
+`--full` adds valgrind's whole report.
+
+`epitech-mem --asan ./my_ls -l src` rebuilds with AddressSanitizer and
+UndefinedBehaviorSanitizer (through `make re CC=…`, your Makefile isn't
+changed), runs, then cleans the sanitized build away. It's faster than
+valgrind and catches overflows on the stack and in globals, which valgrind
+misses.
+
+## Is everything working? `epitech-doctor`
+
+```
+$ epitech-doctor
+Compiling and testing
+  ✓ clang-format 21
+  ✓ Criterion: a test compiles and runs
+  ✓ CSFML: a program links and runs
+Coding style
+  ✓ epiclang reports Banana's checks
+Editors
+  ✓ epitech.nvim loads in your Neovim
+Git and GitHub
+  ✗ git has no name or email: commits will be refused or anonymous
+    fix: git config --global user.name "First Last" && git config --global user.email first.last@epitech.eu
+  ! gh isn't logged in
+    fix: gh auth login
+...
+```
+
+It tests that things *work* (a Criterion test compiles and runs, epiclang
+really reports Banana, the plugin loads), not just that they're installed,
+and gives the command that fixes each problem. `--quick` skips the
+compiling and Neovim checks.
+
+## Neovim
+
+You get [LazyVim](https://www.lazyvim.org/) with
+[epitech.nvim](https://github.com/cempack/epitech.nvim) and the clangd
+extra: format on save that passes Banana, Banana's reports live as you
+save, meters for function length and nesting, one-key fixes, project
+scaffolding with your Pool's libmy, `make` and Criterion results in the
+quickfix list with coverage signs, and a whole-project check. Its README
+shows all of it. Makefiles are formatted by `mbake`.
+
+The installer is careful with your config:
+
+- no `~/.config/nvim` (or an empty one): it installs the
+  [LazyVim starter](https://github.com/LazyVim/starter);
+- an existing LazyVim config: it only adds
+  `lua/plugins/epitech-dump-arch.lua`;
+- any other Neovim config: left alone, the Neovim part is skipped.
+
+## Install options
 
 ```sh
 git clone https://github.com/cempack/epitech-dump-arch.git
 cd epitech-dump-arch
-./install.sh
+./install.sh            # everything
+./install.sh --no-sys   # no pacman, AUR or sudo: user-space parts only
 ```
 
-Re-running is safe (idempotent). `./install.sh --no-sys` skips the
-pacman/AUR/sudo steps and only installs user-space parts. With `--no-sys`,
-the required editors and command-line tools, including `clang-format` 21+, must
-already be installed.
+Re-running is safe. With `--no-sys`, the editors and tools (including
+`clang-format` 21+) must already be installed.
 
-## What you get
+## Updates
 
-- `epiclang` + Banana plugin — coding-style compiler wrapper (same `.debs`
-  the dump installs, tracked from the Epitech PPA)
-- `banana-check-repo` — delivery checker (binaries, filenames)
-- Epitech emacs config + `epitech-emacs` launcher (tracked from GitHub)
-- Epitech vim config (tracked from GitHub)
-- Neovim + LazyVim configured for Epitech C development, through the
-  [epitech.nvim](https://github.com/cempack/epitech.nvim) plugin (its README
-  lists every command and option):
-  - C and `.h` editor settings mirror the installed Epitech Vim configuration
-  - LazyVim's `<leader>cf` and its enabled format-on-save use `clang-format`
-    with the plugin's `epitech.clang-format` profile derived from the installed
-    Epitech C Coding Style PDF; no project `.clang-format` is created
-  - the formatter covers four-space indentation (including `case` labels
-    inside a `switch`), braces, spacing (also inside `#define` bodies),
-    function separation, line and comment wrapping (wrapped lines indented the
-    way Banana measures them), the single blank line after a function's
-    variable declarations, trailing spaces, and Banana C-G3 preprocessor
-    nesting; the Epitech header is preserved, only trailing spaces are removed
-    from it
-  - Banana's warnings appear live as diagnostics when a C file is opened or
-    saved, with `<leader>cE` to explain the rule under the cursor
-  - meters for each function's lines and parameters, nesting depth, and the
-    file's function counts (in the winbar), plus hints for the rules only a
-    grader checks (magic numbers, `const`, `static`, naming)
-  - code-action fixes in `<leader>ca` (`(void)`, declarations to the top, one
-    statement per line, `if` chains to `switch`, structs by pointer, extract a
-    function…), next to clangd's
-  - `:EpitechNew` creates a project (Makefile, header, `main.c`, an error
-    helper, Criterion tests, and only the libmy functions it uses);
-    `<leader>cN` adds a source file; `:EpitechLib` adds Pool libmy functions
-  - `<leader>cB` / `:EpitechCheck` checks the whole project; `:EpitechHooks`
-    adds a pre-push hook that stops a push while a Major is left
-  - `<leader>cH` / `:EpitechHeader` inserts an interactive Epitech header
-    using the current filetype's comment syntax: C, Makefile, shell/Python,
-    Lua, HTML, and many others. This follows the installed Epitech Vim
-    header styles where defined. Existing shebangs are preserved; a header
-    in the wrong comment style can be replaced after confirmation.
-  - `<leader>cG` / `:EpitechGuard` wraps a named `.h` file in an include guard
-    derived from its filename (for example, `my_macro_abs.h` becomes
-    `MY_MACRO_ABS_H_`); an existing Epitech banner stays at the top
-  - Makefiles use `mbake` through Conform for formatting, including safe
-    assignment spacing while preserving recipe tabs and the Epitech banner
-  - LazyVim's clangd language extra is enabled; the plugin corrects the
-    internal headers clangd tends to insert (`<malloc.h>`, `<bits/…>`) to the
-    public ones
-- Formatting does not rewrite program logic to satisfy structural or semantic
-  Banana rules (such as function length, parameter count, or naming): the
-  diagnostics, meters and fixes above are there for those.
-- criterion, clang 21 and the system clang, gcc, gdb, valgrind, csfml, make, tcsh,
-  lazygit, gh (GitHub CLI),
-  tree, x264, net-tools, ripgrep, fd… (pacman)
-- `teams-for-linux` (AUR)
-- `epitech-upgrade` + weekly systemd timer — keeps school tooling current
+A weekly timer runs `epitech-upgrade`: epiclang and Banana from the Epitech
+PPA, the Emacs and Vim configs, epitech.nvim (`:Lazy update epitech.nvim`
+only, never your other plugins), and this project's commands.
 
-### Neovim safety
+```sh
+epitech-upgrade            # now
+epitech-upgrade --check    # only report what's out of date
+systemctl --user list-timers | grep epitech
+```
 
-If `~/.config/nvim` is absent or empty, the installer bootstraps the official
-[LazyVim starter](https://github.com/LazyVim/starter). If an existing LazyVim
-configuration is detected, only the managed Epitech plugin specification is
-added under `lua/plugins/`. A non-LazyVim configuration is never overwritten;
-the installer reports that the Neovim integration was skipped.
-
-lazy.nvim installs the plugin from GitHub like any other plugin. The weekly
-`epitech-upgrade` timer refreshes the managed spec, updates epitech.nvim with
-`:Lazy update epitech.nvim`, and refreshes the upstream Epitech Vim file that
-its formatter loads. It does not update LazyVim itself or other plugins, or
-touch unmanaged Neovim files. `epitech-upgrade --check` only reports available
-updates. The installer also installs the pinned `mbake` Makefile formatter
-through `uv`, and removes the copy of the plugin that older versions installed
-under `~/.local/share/nvim/epitech-upgrade/`.
-
-## Updating
-
-Automatic (weekly timer): `systemctl --user list-timers | grep epitech`.
-Manual anytime: `epitech-upgrade` (`--check` for report-only).
-System packages still update via `yay -Syu` (the updater tells you when).
-Run `:LazyHealth` inside Neovim to inspect the LazyVim installation.
+System packages stay pacman's: `yay -Syu` (the updater tells you when
+Criterion or Teams have a new version).
 
 ## Uninstall
 
-While epitech.nvim is still installed, run `:EpitechHooks remove` in each
-repository where you added its pre-push hook, and `:EpitechLazygit remove` if
-you added its lazygit key. Then:
+First, while epitech.nvim is still installed, run `:EpitechHooks remove` in
+the repositories where you added its pre-push hook, and
+`:EpitechLazygit remove` if you added its lazygit key. Then:
 
 ```sh
 systemctl --user disable --now epitech-upgrade.timer
 rm ~/.config/systemd/user/epitech-upgrade.{service,timer}
-rm ~/.local/bin/{epitech-upgrade,epitech-emacs,epiclang,epiclang.py,banana-check-repo,teams-for-linux}
+rm ~/.local/bin/{epitech-upgrade,epitech-doctor,epitech-predeliver,epitech-mem,epitech-emacs}
+rm ~/.local/bin/{epiclang,epiclang.py,banana-check-repo,teams-for-linux}
 rm ~/.config/nvim/lua/plugins/epitech-dump-arch.lua
 rm -rf ~/.local/share/nvim/lazy/epitech.nvim ~/.local/share/nvim/epitech.nvim
 rm -rf ~/.local/lib/epiclang ~/.local/share/epitech-upgrade ~/.local/share/epitech-dump-arch
 ```
 
-Then optionally `sudo pacman -Rns` the packages from `install.sh`, and remove
-the Epitech blocks from `~/.emacs`, `~/.vimrc`, `~/.vim/epitech.vim`,
-`~/.emacs.d/lisp/{epitech,site-start.d}`.
+Optionally `sudo pacman -Rns` the packages from `install.sh`, and remove the
+Epitech blocks from `~/.emacs`, `~/.vimrc`, `~/.vim/epitech.vim` and
+`~/.emacs.d/lisp/{epitech,site-start.d}`. The LazyVim starter stays, since
+your Neovim config may hold your own changes.
 
-The installer leaves the LazyVim starter itself in place because the Neovim
-configuration may contain unrelated user changes.
+## Development
 
-## Disclaimer
+`test/run` runs the tests (set `EPITECH_NVIM_DIR` to test against a local
+epitech.nvim checkout).
 
-Unofficial, not affiliated with Epitech. Parity target is the school's
-`dump.sh` + Epitech PPA for Ubuntu 26.04 (Resolute).
+Unofficial, not affiliated with Epitech. Parity target: the school's
+`dump.sh` and the Epitech PPA for Ubuntu 26.04.
