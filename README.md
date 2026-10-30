@@ -36,32 +36,48 @@ already be installed.
 - Epitech emacs config + `epitech-emacs` launcher (tracked from GitHub)
 - Epitech vim config (tracked from GitHub)
 - Neovim + LazyVim configured for Epitech C development, through the
-  [epitech.nvim](https://github.com/cempack/epitech.nvim) plugin:
+  [epitech.nvim](https://github.com/cempack/epitech.nvim) plugin (its README
+  lists every command and option):
   - C and `.h` editor settings mirror the installed Epitech Vim configuration
   - LazyVim's `<leader>cf` and its enabled format-on-save use `clang-format`
     with the plugin's `epitech.clang-format` profile derived from the installed
     Epitech C Coding Style PDF; no project `.clang-format` is created
   - the formatter covers four-space indentation (including `case` labels
     inside a `switch`), braces, spacing (also inside `#define` bodies),
-    function separation, line and comment wrapping, the single blank line
-    after a function's variable declarations, trailing spaces, and Banana C-G3
-    preprocessor nesting
+    function separation, line and comment wrapping (wrapped lines indented the
+    way Banana measures them), the single blank line after a function's
+    variable declarations, trailing spaces, and Banana C-G3 preprocessor
+    nesting; the Epitech header is preserved, only trailing spaces are removed
+    from it
+  - Banana's warnings appear live as diagnostics when a C file is opened or
+    saved, with `<leader>cE` to explain the rule under the cursor
+  - meters for each function's lines and parameters, nesting depth, and the
+    file's function counts (in the winbar), plus hints for the rules only a
+    grader checks (magic numbers, `const`, `static`, naming)
+  - code-action fixes in `<leader>ca` (`(void)`, declarations to the top, one
+    statement per line, `if` chains to `switch`, structs by pointer, extract a
+    function…), next to clangd's
+  - `:EpitechNew` creates a project (Makefile, header, `main.c`, an error
+    helper, Criterion tests, and only the libmy functions it uses);
+    `<leader>cN` adds a source file; `:EpitechLib` adds Pool libmy functions
+  - `<leader>cB` / `:EpitechCheck` checks the whole project; `:EpitechHooks`
+    adds a pre-push hook that stops a push while a Major is left
   - `<leader>cH` / `:EpitechHeader` inserts an interactive Epitech header
     using the current filetype's comment syntax: C, Makefile, shell/Python,
     Lua, HTML, and many others. This follows the installed Epitech Vim
     header styles where defined. Existing shebangs are preserved; a header
     in the wrong comment style can be replaced after confirmation.
-  - Makefiles use `mbake` through Conform for formatting, including safe
-    assignment spacing while preserving recipe tabs and the Epitech banner.
   - `<leader>cG` / `:EpitechGuard` wraps a named `.h` file in an include guard
     derived from its filename (for example, `my_macro_abs.h` becomes
     `MY_MACRO_ABS_H_`); an existing Epitech banner stays at the top
-  - the header is preserved when the rest of the file is formatted; only
-    trailing spaces are removed from it
-  - LazyVim's clangd language extra is enabled
-- Formatting does not silently rewrite program logic to satisfy structural or
-  semantic Banana rules (such as function length, parameter count, or naming).
-  Run `epiclang` to check those requirements after formatting.
+  - Makefiles use `mbake` through Conform for formatting, including safe
+    assignment spacing while preserving recipe tabs and the Epitech banner
+  - LazyVim's clangd language extra is enabled; the plugin corrects the
+    internal headers clangd tends to insert (`<malloc.h>`, `<bits/…>`) to the
+    public ones
+- Formatting does not rewrite program logic to satisfy structural or semantic
+  Banana rules (such as function length, parameter count, or naming): the
+  diagnostics, meters and fixes above are there for those.
 - criterion, clang 21 and the system clang, gcc, gdb, valgrind, csfml, make, tcsh,
   tree, x264, net-tools, ripgrep, fd… (pacman)
 - `teams-for-linux` (AUR)
@@ -93,12 +109,16 @@ Run `:LazyHealth` inside Neovim to inspect the LazyVim installation.
 
 ## Uninstall
 
+While epitech.nvim is still installed, run `:EpitechHooks remove` in each
+repository where you added its pre-push hook, and `:EpitechLazygit remove` if
+you added its lazygit key. Then:
+
 ```sh
 systemctl --user disable --now epitech-upgrade.timer
 rm ~/.config/systemd/user/epitech-upgrade.{service,timer}
 rm ~/.local/bin/{epitech-upgrade,epitech-emacs,epiclang,epiclang.py,banana-check-repo,teams-for-linux}
 rm ~/.config/nvim/lua/plugins/epitech-dump-arch.lua
-rm -rf ~/.local/share/nvim/epitech-upgrade/nvim/epitech.nvim
+rm -rf ~/.local/share/nvim/lazy/epitech.nvim ~/.local/share/nvim/epitech.nvim
 rm -rf ~/.local/lib/epiclang ~/.local/share/epitech-upgrade ~/.local/share/epitech-dump-arch
 ```
 
