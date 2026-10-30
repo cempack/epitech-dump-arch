@@ -62,63 +62,99 @@ ALLOWED_FILE="${ALLOWED_DIR}/$(printf '%s' "$ROOT" | sed 's|/|%|g')"
 
 printf '%sepitech-predeliver%s %s\n' "$BOLD" "$RESET" "$ROOT"
 
+# What the moulinette gets: a clone of HEAD. With nothing committed yet, the
+# checks use what `git add -A` would commit (.gitignore applied) instead, so
+# there's something to look at before the first commit.
+COMMITTED=1
+git rev-parse --verify -q HEAD >/dev/null || COMMITTED=0
+if [ "$COMMITTED" -eq 1 ]; then
+    files() { git ls-files; }
+    TRACKED="tracked"
+else
+    files() { git ls-files --cached --others --exclude-standard; }
+    TRACKED="about to be committed"
+fi
+CLONE=$(mktemp -d)
+if [ "$KEEP" -eq 0 ]; then
+    trap 'rm -rf "$CLONE"' EXIT
+fi
+if [ "$COMMITTED" -eq 1 ]; then
+    git clone -q "$ROOT" "$CLONE/project" 2>/dev/null || { printf 'could not clone the repository\n'; exit 1; }
+else
+    mkdir -p "$CLONE/project"
+    files | tr '\n' '\0' | xargs -0 -r cp --parents -t "$CLONE/project" 2>/dev/null
+    # A repository again, for the checks that list files with git.
+    (cd "$CLONE/project" && git init -q && git add -A) >/dev/null 2>&1
+fi
+
 # ---------------------------------------------------------------- repository
 section "Repository"
-branch=$(git branch --show-current)
-pass "branch ${branch:-(detached HEAD)}, last commit $(git log -1 --format='%h %s' 2>/dev/null || echo none)"
-
-changes=$(git status --porcelain --untracked-files=no | wc -l)
-if [ "$changes" -gt 0 ]; then
-    warn "$changes tracked file(s) changed but not committed: the moulinette won't see them"
-    git status --porcelain --untracked-files=no | head -5 | while read -r line; do note "$line"; done
+if [ "$COMMITTED" -eq 0 ]; then
+    block "nothing is committed yet: the moulinette would get an empty repository"
+    note "git add -A && git commit -m \"…\"; below, what that would commit is checked"
 else
-    pass "no uncommitted changes"
-fi
+    branch=$(git branch --show-current)
+    pass "branch ${branch:-(detached HEAD)}, last commit $(git log -1 --format='%h %s')"
 
-untracked=$(git ls-files --others --exclude-standard -- '*.c' '*.h' 'Makefile' '*/Makefile')
-if [ -n "$untracked" ]; then
-    block "source files never added to git (the build will miss them):"
-    printf '%s\n' "$untracked" | head -10 | while read -r file; do note "$file"; done
-else
-    pass "every .c, .h and Makefile is tracked"
-fi
-
-if upstream=$(git rev-parse --abbrev-ref '@{upstream}' 2>/dev/null); then
-    ahead=$(git rev-list --count '@{upstream}..HEAD')
-    if [ "$ahead" -gt 0 ]; then
-        block "$ahead commit(s) not pushed to $upstream"
+    changes=$(git status --porcelain --untracked-files=no | wc -l)
+    if [ "$changes" -gt 0 ]; then
+        warn "$changes tracked file(s) changed but not committed: the moulinette won't see them"
+        git status --porcelain --untracked-files=no | head -5 | while read -r line; do note "$line"; done
     else
-        pass "everything is pushed to $upstream"
+        pass "no uncommitted changes"
     fi
-else
-    warn "no upstream branch: push with 'git push -u origin ${branch:-HEAD}'"
+
+    untracked=$(git ls-files --others --exclude-standard -- '*.c' '*.h' 'Makefile' '*/Makefile')
+    if [ -n "$untracked" ]; then
+        block "source files never added to git (the build will miss them):"
+        printf '%s\n' "$untracked" | head -10 | while read -r file; do note "$file"; done
+    else
+        pass "every .c, .h and Makefile is tracked"
+    fi
+
+    if upstream=$(git rev-parse --abbrev-ref '@{upstream}' 2>/dev/null); then
+        ahead=$(git rev-list --count '@{upstream}..HEAD')
+        if [ "$ahead" -gt 0 ]; then
+            block "$ahead commit(s) not pushed to $upstream"
+        else
+            pass "everything is pushed to $upstream"
+        fi
+    else
+        warn "no upstream branch: push with 'git push -u origin ${branch:-HEAD}'"
+    fi
 fi
 
 # C-O1: files a delivery must not contain.
-junk=$(git ls-files | grep -E '(\.(o|a|so|gcda|gcno|gcov|swp|orig)$|~$|(^|/)#[^/]*#$|(^|/)vgcore\.[0-9]+$|(^|/)a\.out$|(^|/)unit_tests$|(^|/)\.(vscode|idea)/|(^|/)\.DS_Store$)' || true)
+junk=$(files | grep -E '(\.(o|a|so|gcda|gcno|gcov|swp|orig)$|~$|(^|/)#[^/]*#$|(^|/)vgcore\.[0-9]+$|(^|/)a\.out$|(^|/)unit_tests$|(^|/)\.(vscode|idea)/|(^|/)\.DS_Store$)' || true)
 while IFS= read -r file; do
-    # Tracked executables that aren't scripts are build products.
+    # Executables that aren't scripts are build products.
     if [ -f "$file" ] && [ -x "$file" ] && head -c 4 "$file" 2>/dev/null | grep -q $'\x7fELF'; then
         junk=$(printf '%s\n%s' "$junk" "$file")
     fi
-done < <(git ls-files)
+done < <(files)
 junk=$(printf '%s\n' "$junk" | sed '/^$/d' | sort -u)
 if [ -n "$junk" ]; then
-    block "tracked build products or temporary files (C-O1):"
+    block "build products or temporary files $TRACKED (C-O1):"
     printf '%s\n' "$junk" | head -10 | while read -r file; do note "$file"; done
-    note "untrack them: git rm --cached <file>, then add their pattern to .gitignore"
+    if [ "$COMMITTED" -eq 1 ]; then
+        note "untrack them: git rm --cached <file>, then add their pattern to .gitignore"
+    else
+        note "add their pattern to .gitignore before committing"
+    fi
 else
-    pass "no build products or temporary files tracked"
+    pass "no build products or temporary files $TRACKED"
 fi
 
-big=$(git ls-files -z | xargs -0 -r du -k 2>/dev/null | awk '$1 > 1024 {print $2 " (" int($1 / 1024) " MB)"}')
+big=$(files | tr '\n' '\0' | xargs -0 -r du -k 2>/dev/null | awk '$1 > 1024 {print $2 " (" int($1 / 1024) " MB)"}')
 if [ -n "$big" ]; then
-    warn "large files tracked:"
+    warn "large files $TRACKED:"
     printf '%s\n' "$big" | head -5 | while read -r file; do note "$file"; done
 fi
 
+# banana-check-repo looks at the files on disk: run it on what's delivered,
+# not on the build products lying around in your working tree.
 if command -v banana-check-repo >/dev/null 2>&1; then
-    if output=$(banana-check-repo 2>&1); then
+    if output=$(cd "$CLONE/project" && banana-check-repo 2>&1); then
         pass "banana-check-repo found nothing"
     else
         block "banana-check-repo:"
@@ -129,12 +165,11 @@ else
 fi
 
 # ------------------------------------------------------------------- build
-section "Build (fresh clone of HEAD)"
-CLONE=$(mktemp -d)
-if [ "$KEEP" -eq 0 ]; then
-    trap 'rm -rf "$CLONE"' EXIT
+if [ "$COMMITTED" -eq 1 ]; then
+    section "Build (fresh clone of HEAD)"
+else
+    section "Build (what git add -A would commit)"
 fi
-git clone -q "$ROOT" "$CLONE/project" 2>/dev/null || { block "could not clone the repository"; exit 1; }
 cd "$CLONE/project" || exit 1
 
 NAME=""
@@ -205,7 +240,9 @@ fi
 # ------------------------------------------------------------ coding style
 section "Coding style"
 CHECK_SCRIPT="${XDG_DATA_HOME:-${HOME}/.local/share}/nvim/lazy/epitech.nvim/scripts/check.lua"
-if ! command -v epiclang >/dev/null 2>&1; then
+if [ -z "$(git ls-files -- '*.c' '*.h')" ]; then
+    skip "no .c or .h file to check"
+elif ! command -v epiclang >/dev/null 2>&1; then
     skip "epiclang not installed"
 elif [ -f "$CHECK_SCRIPT" ] && command -v nvim >/dev/null 2>&1; then
     style=$(nvim --clean --headless -l "$CHECK_SCRIPT" --ci "$CLONE/project" 2>&1)
@@ -335,7 +372,9 @@ else
         status=$?
     fi
     synthesis=$(printf '%s\n' "$tests" | sed 's/\x1b\[[0-9;]*m//g' | grep 'Synthesis' | tail -1 | sed 's/.*Synthesis: //')
-    if [ "$status" -eq 0 ]; then
+    if [ "$status" -eq 0 ] && printf '%s' "$synthesis" | grep -q 'Tested: 0 '; then
+        warn "no test ran ($synthesis): does TEST_SRC list your tests/ files?"
+    elif [ "$status" -eq 0 ]; then
         pass "tests pass${synthesis:+: $synthesis}"
     else
         block "tests fail${synthesis:+: $synthesis}"

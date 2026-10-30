@@ -38,6 +38,32 @@ TMP=$(mktemp -d)
 trap 'rm -rf "$TMP"' EXIT
 REINSTALL="re-run the installer (install.sh, see the README)"
 
+# Compiles $2 with the flags after it and runs it: ✓, or ✗ with what the
+# compiler or the program said, and the package to install only when a
+# header or the library itself is missing ($1 is the package).
+build_and_run() {
+    local package="$1" source="$2" label="$3" output status
+    shift 3
+    if ! output=$(cc -o "${source%.c}" "$source" "$@" 2>&1); then
+        if printf '%s\n' "$output" | grep -qE 'No such file or directory|cannot find -l'; then
+            bad "$label: it doesn't build" "sudo pacman -S $package"
+        else
+            bad "$label: it doesn't build"
+        fi
+        printf '%s\n' "$output" | grep -E 'error|undefined|cannot find' | head -4 \
+            | while IFS= read -r line; do printf '    %s%s%s\n' "$DIM" "$line" "$RESET"; done
+        return
+    fi
+    output=$("${source%.c}" 2>&1)
+    status=$?
+    if [ "$status" -ne 0 ]; then
+        bad "$label: it builds but exits with status $status"
+        printf '%s\n' "$output" | head -4 | while IFS= read -r line; do printf '    %s%s%s\n' "$DIM" "$line" "$RESET"; done
+        return
+    fi
+    good "$label: compiles and runs"
+}
+
 # A required command: ✗ when missing. $2 is how to get it.
 need() {
     if command -v "$1" >/dev/null 2>&1; then
@@ -95,11 +121,7 @@ Test(doctor, works)
     cr_assert_eq(1, 1);
 }
 EOF
-    if cc -o "$TMP/test" "$TMP/test.c" -lcriterion >/dev/null 2>&1 && "$TMP/test" >/dev/null 2>&1; then
-        good "Criterion: a test compiles and runs"
-    else
-        bad "Criterion: a test doesn't compile or run" "sudo pacman -S criterion"
-    fi
+    build_and_run criterion "$TMP/test.c" "Criterion (a test)" -lcriterion
     cat > "$TMP/csfml.c" <<'EOF'
 #include <SFML/System.h>
 
@@ -111,11 +133,7 @@ int main(void)
     return 0;
 }
 EOF
-    if cc -o "$TMP/csfml" "$TMP/csfml.c" -lcsfml-system >/dev/null 2>&1 && "$TMP/csfml" >/dev/null 2>&1; then
-        good "CSFML: a program links and runs"
-    else
-        bad "CSFML: a program doesn't link" "sudo pacman -S csfml"
-    fi
+    build_and_run csfml "$TMP/csfml.c" "CSFML (a program using sfClock)" -lcsfml-system
 fi
 
 section "Coding style"

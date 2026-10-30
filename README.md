@@ -35,7 +35,7 @@ Repository
   ✗ source files never added to git (the build will miss them):
     src/sort.c
   ✓ everything is pushed to origin/main
-  ✗ tracked build products or temporary files (C-O1):
+  ✗ build products or temporary files tracked (C-O1):
     src/display.o
 
 Build (fresh clone of HEAD)
@@ -109,8 +109,8 @@ misses.
 $ epitech-doctor
 Compiling and testing
   ✓ clang-format 21
-  ✓ Criterion: a test compiles and runs
-  ✓ CSFML: a program links and runs
+  ✓ Criterion (a test): compiles and runs
+  ✓ CSFML (a program using sfClock): compiles and runs
 Coding style
   ✓ epiclang reports Banana's checks
 Editors

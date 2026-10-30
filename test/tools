@@ -109,7 +109,7 @@ expect "forgotten" "$out" "no list of authorized functions for this project; it 
     && printf 'int unused;\n' > src/forgotten.c && printf '\n' >> src/main.c)
 out=$("${BIN}/epitech-predeliver" --no-tests "$PROJECT" 2>&1)
 status=$?
-expect "junk" "$out" "tracked build products.*C-O1"
+expect "junk" "$out" "build products or temporary files tracked \\(C-O1\\)"
 expect "junk file" "$out" "src/print.o"
 expect "untracked" "$out" "never added to git"
 expect "untracked file" "$out" "src/forgotten.c"
@@ -126,6 +126,25 @@ out=$("${BIN}/epitech-predeliver" --no-tests "$BROKEN" 2>&1)
 expect "fresh clone" "$out" "make fails on a fresh clone"
 out=$("${BIN}/epitech-predeliver" "${TEST_ROOT}" 2>&1)
 expect "not a repository" "$out" "not inside a git repository"
+
+# Nothing committed yet (Elliot's my_ls): said once, then what git add -A
+# would commit is built and tested, .gitignore applied, so the .o files and
+# the binary lying around aren't reported. A tests_run that runs no test
+# gets a warning.
+FRESH="${TEST_ROOT}/fresh"
+make_project "$FRESH"
+(cd "$FRESH" && rm -rf .git && git init -q && printf '*.o\ndemo\n' > .gitignore \
+    && sed -i 's/Tested: 2 | Passing: 2/Tested: 0 | Passing: 0/' Makefile && make -s >/dev/null)
+out=$("${BIN}/epitech-predeliver" --allowed "malloc free write printf" "$FRESH" 2>&1)
+status=$?
+expect "no commit" "$out" "nothing is committed yet"
+expect "no commit: build" "$out" "Build \(what git add -A would commit\)"
+expect "no commit: make" "$out" "✓ make succeeds"
+expect "no commit: functions" "$out" "only authorized functions"
+expect "no commit: no tests" "$out" "no test ran \(Tested: 0"
+expect "no commit: ignored files" "$out" "no build products or temporary files about to be committed"
+reject "no commit: no clone of nothing" "$out" "no Makefile at the root"
+[ "$status" -eq 1 ] || fail "no commit: exit $status"
 printf '%s\n' "epitech-predeliver tests passed"
 
 # --------------------------------------------------------------- epitech-mem
@@ -218,7 +237,7 @@ printf '%s\n' "epitech-mem tests passed"
 # Without epiclang on PATH, the doctor says so and fails.
 EMPTY_BIN="${TEST_ROOT}/empty-bin"
 mkdir -p "$EMPTY_BIN"
-for tool in bash sed grep awk cat ls head mktemp rm printf git cc gcc timeout tr; do
+for tool in bash sed grep awk cat ls head mktemp rm printf git cc gcc timeout tr chmod; do
     path=$(command -v "$tool") && ln -sf "$path" "${EMPTY_BIN}/${tool}"
 done
 out=$(PATH="$EMPTY_BIN" bash "${BIN}/epitech-doctor" --quick 2>&1)
@@ -227,6 +246,24 @@ expect "doctor epiclang" "$out" "✗ epiclang is missing"
 expect "doctor fix" "$out" "fix: epitech-upgrade --force"
 expect "doctor verdict" "$out" "✗ [0-9]+ thing\(s\) to fix"
 [ "$status" -eq 1 ] || fail "doctor: exit $status"
+
+# A library that's installed but doesn't link: the compiler's own message,
+# and no "reinstall it" advice, which wouldn't help.
+FAKE_CC="${TEST_ROOT}/fake-cc"
+mkdir -p "$FAKE_CC"
+cat > "${FAKE_CC}/cc" <<'EOF2'
+#!/bin/sh
+case "$*" in
+    *csfml*) echo "/usr/bin/ld: csfml.o: undefined reference to \`sfClock_create'" >&2; exit 1 ;;
+    *) printf '#!/bin/sh\nexit 0\n' > "$2"; chmod +x "$2" ;;
+esac
+EOF2
+chmod +x "${FAKE_CC}/cc"
+out=$(PATH="${FAKE_CC}:${EMPTY_BIN}" bash "${BIN}/epitech-doctor" 2>&1)
+expect "doctor link error" "$out" "✗ CSFML \(a program using sfClock\): it doesn't build"
+expect "doctor shows the error" "$out" "undefined reference to .sfClock_create"
+reject "doctor: no reinstall advice for a link error" "$out" "fix: sudo pacman -S csfml"
+expect "doctor criterion" "$out" "✓ Criterion \(a test\): compiles and runs"
 printf '%s\n' "epitech-doctor tests passed"
 
 # ------------------------------------------- epitech-upgrade: the commands
