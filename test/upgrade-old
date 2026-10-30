@@ -1,0 +1,89 @@
+#!/usr/bin/env bash
+# An install from before lib/tools.sh: its epitech-upgrade
+# (test/fixtures/epitech-upgrade.7c9146b) has no step for the epitech-*
+# commands and never updates itself. Its weekly run must still bring them
+# in, replace epitech-upgrade with the current one, and say which packages
+# install.sh now adds.
+set -euo pipefail
+
+REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." >/dev/null 2>&1 && pwd)"
+TEST_ROOT=$(mktemp -d)
+trap 'rm -rf "$TEST_ROOT"' EXIT
+
+fail() { printf 'FAILED: %s\n' "$*"; exit 1; }
+
+HOME="${TEST_ROOT}/home"
+XDG_CONFIG_HOME="${HOME}/.config"
+XDG_DATA_HOME="${HOME}/.local/share"
+SOURCE_REPO="${TEST_ROOT}/source"
+EPITECH_REPO_URL="file://${SOURCE_REPO}"
+export HOME XDG_CONFIG_HOME XDG_DATA_HOME EPITECH_REPO_URL
+
+# The project as it is now, as the old script will download it.
+mkdir -p "$SOURCE_REPO"
+cp -R "${REPO_DIR}/lib" "${REPO_DIR}/bin" "${REPO_DIR}/nvim" "${REPO_DIR}/install.sh" \
+    "${REPO_DIR}/epitech-upgrade" "$SOURCE_REPO/"
+git -C "$SOURCE_REPO" init -q
+git -C "$SOURCE_REPO" add .
+git -C "$SOURCE_REPO" -c user.name=test -c user.email=test@example.com commit -qm source
+
+# The old install: its epitech-upgrade, a LazyVim config with the managed spec.
+mkdir -p "${HOME}/.local/bin" "${XDG_CONFIG_HOME}/nvim/lua/config" "${XDG_CONFIG_HOME}/nvim/lua/plugins"
+OLD="${HOME}/.local/bin/epitech-upgrade"
+cp "${REPO_DIR}/test/fixtures/epitech-upgrade.7c9146b" "$OLD"
+chmod +x "$OLD"
+printf '%s\n' 'require("config.lazy")' > "${XDG_CONFIG_HOME}/nvim/init.lua"
+printf '%s\n' '{ "LazyVim/LazyVim" }' > "${XDG_CONFIG_HOME}/nvim/lua/config/lazy.lua"
+printf '%s\n' '-- Managed by epitech-dump-arch. Re-run the installer to update this file.' \
+    > "${XDG_CONFIG_HOME}/nvim/lua/plugins/epitech-dump-arch.lua"
+
+# Stand-ins: nvim records the lazy.nvim update, pacman knows every package but
+# the three added after that version.
+FAKE="${TEST_ROOT}/fake"
+mkdir -p "$FAKE"
+printf '#!/bin/sh\nexit 0\n' > "${FAKE}/nvim"
+printf '#!/bin/sh\nexit 0\n' > "${FAKE}/mbake"
+printf '#!/bin/sh\necho "clang-format version 21.1.8"\n' > "${FAKE}/clang-format"
+cat > "${FAKE}/pacman" <<'EOF'
+#!/bin/sh
+case "$2" in gdb|lazygit|github-cli) exit 1 ;; esac
+exit 0
+EOF
+chmod +x "$FAKE"/*
+PATH="${FAKE}:${PATH}"
+
+# The old script's functions, then the step the weekly timer runs.
+out=$(
+    # shellcheck disable=SC1090
+    . "$OLD"
+    declare -F do_tools >/dev/null && fail "the fixture should be the old epitech-upgrade"
+    UPGRADE_TMP_DIR=$(mktemp -d)
+    do_nvim_cfg "$UPGRADE_TMP_DIR"
+    [ "${#FAILED[@]}" -eq 0 ] || fail "old upgrade failures: ${FAILED[*]}"
+)
+printf '%s\n' "$out"
+
+for tool in epitech-doctor epitech-predeliver epitech-mem; do
+    cmp -s "${REPO_DIR}/bin/${tool}" "${HOME}/.local/bin/${tool}" || fail "${tool} not installed by the old upgrade"
+    [ -x "${HOME}/.local/bin/${tool}" ] || fail "${tool} not executable"
+done
+cmp -s "${REPO_DIR}/epitech-upgrade" "$OLD" || fail "epitech-upgrade not replaced by the current one"
+printf '%s\n' "$out" | grep -q 'sudo pacman -S --needed gdb lazygit github-cli' \
+    || fail "missing packages not reported"
+printf '%s\n' "$out" | grep -q 'epitech.nvim updated through lazy.nvim' || fail "plugin not updated"
+
+# From now on it's the new epitech-upgrade: its own step runs, and the
+# Neovim step doesn't do the work twice.
+out=$(
+    # shellcheck disable=SC1090
+    . "$OLD"
+    declare -F do_tools >/dev/null || fail "the new epitech-upgrade should have do_tools"
+    UPGRADE_TMP_DIR=$(mktemp -d)
+    do_nvim_cfg "$UPGRADE_TMP_DIR"
+    do_tools "$UPGRADE_TMP_DIR"
+    [ "${#FAILED[@]}" -eq 0 ] || fail "new upgrade failures: ${FAILED[*]}"
+)
+[ "$(printf '%s\n' "$out" | grep -c '^epitech-\* commands')" -eq 1 ] || { printf '%s\n' "$out"; fail "tools step ran twice"; }
+printf '%s\n' "$out" | grep -q 'epitech-\* commands up to date' || { printf '%s\n' "$out"; fail "second run"; }
+
+printf '%s\n' "Old epitech-upgrade catch-up tests passed"

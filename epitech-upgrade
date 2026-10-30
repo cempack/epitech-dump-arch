@@ -233,27 +233,16 @@ dump_checkout() {
     printf '%s' "$dir"
 }
 
-# epitech-doctor, epitech-predeliver and epitech-mem follow this project.
+# epitech-upgrade itself and the epitech-* commands follow this project,
+# and the packages install.sh would add now are reported (no sudo here).
 do_tools() {
-    local dir tool name target changed=0
+    local dir
     log "epitech-* commands (track ${EPITECH_REPO_URL}):"
     dir=$(dump_checkout "$1") || { fail "epitech-* commands (repository download failed)"; return; }
-    for tool in "${dir}"/bin/epitech-*; do
-        [ -f "$tool" ] || continue
-        name=$(basename "$tool")
-        target="${PREFIX}/bin/${name}"
-        if [ "$FORCE" -eq 0 ] && cmp -s "$tool" "$target"; then
-            continue
-        fi
-        changed=1
-        if [ "$CHECK_ONLY" -eq 1 ]; then
-            info "update available for ${name}"
-        else
-            install -m 755 "$tool" "$target" || { fail "${name} (install failed)"; continue; }
-            ok "${name} updated"
-        fi
-    done
-    [ "$changed" -eq 0 ] && ok "up to date"
+    [ -f "${dir}/lib/tools.sh" ] || { fail "epitech-* commands (lib/tools.sh missing)"; return; }
+    # shellcheck source=lib/tools.sh
+    . "${dir}/lib/tools.sh" || { fail "epitech-* commands (lib/tools.sh failed to load)"; return; }
+    upgrade_dump_tools "$dir" "$CHECK_ONLY" "$FORCE" || fail "epitech-* commands (install failed)"
 }
 
 do_nvim_cfg() {

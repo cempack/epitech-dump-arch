@@ -170,8 +170,15 @@ epitech-upgrade --check    # only report what's out of date
 systemctl --user list-timers | grep epitech
 ```
 
-System packages stay pacman's: `yay -Syu` (the updater tells you when
-Criterion or Teams have a new version).
+System packages stay pacman's: `yay -Syu`. The updater runs without a
+terminal, so it never uses sudo: it tells you which packages the installer
+now adds (`sudo pacman -S --needed gdb lazygit github-cli`) and when
+Criterion or Teams have a new version.
+
+Installs from before `epitech-doctor` existed catch up on their next update
+(or run `epitech-upgrade` now): it installs the new commands and replaces
+itself. The one exception is an install whose Neovim config isn't LazyVim:
+re-run `install.sh` once.
 
 ## Uninstall
 

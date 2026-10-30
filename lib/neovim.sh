@@ -59,6 +59,16 @@ upgrade_managed_nvim() {
     local spec_source="${repo_dir}/nvim/lazyvim-spec.lua"
     local local_head remote_head
 
+    # An epitech-upgrade from before lib/tools.sh never updates itself or the
+    # epitech-* commands, but it runs this: do it for it.
+    if ! declare -F do_tools >/dev/null && [ -f "${repo_dir}/lib/tools.sh" ]; then
+        # shellcheck source=lib/tools.sh
+        if . "${repo_dir}/lib/tools.sh"; then
+            log "epitech-* commands:"
+            upgrade_dump_tools "$repo_dir" "$check_only" "$force" || warn "could not update the epitech-* commands"
+        fi
+    fi
+
     if ! is_lazyvim_config "$config_dir" \
         || [ ! -f "$spec_file" ] \
         || ! grep -q '^-- Managed by epitech-dump-arch' "$spec_file"; then

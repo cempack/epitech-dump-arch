@@ -231,8 +231,8 @@ printf '%s\n' "epitech-doctor tests passed"
 
 # ------------------------------------------- epitech-upgrade: the commands
 SOURCE_REPO="${TEST_ROOT}/source"
-mkdir -p "${SOURCE_REPO}/bin" "${TEST_ROOT}/home/.local/bin"
-cp "${BIN}"/epitech-* "${SOURCE_REPO}/bin/"
+mkdir -p "${SOURCE_REPO}" "${TEST_ROOT}/home/.local/bin"
+cp -R "${REPO_DIR}/bin" "${REPO_DIR}/lib" "${REPO_DIR}/install.sh" "${REPO_DIR}/epitech-upgrade" "${SOURCE_REPO}/"
 git -C "$SOURCE_REPO" init -q
 git -C "$SOURCE_REPO" add .
 git -C "$SOURCE_REPO" -c user.name=test -c user.email=test@example.com commit -qm source
@@ -253,7 +253,8 @@ git -C "$SOURCE_REPO" -c user.name=test -c user.email=test@example.com commit -q
     [ -x "${PREFIX}/bin/epitech-mem" ] || fail "epitech-mem not installed"
     mkdir -p "${TEST_ROOT}/u3"
     out=$(do_tools "${TEST_ROOT}/u3")
-    expect "upgrade again" "$out" "up to date"
+    expect "upgrade again" "$out" "epitech-\\* commands up to date"
+    cmp -s "${REPO_DIR}/epitech-upgrade" "${PREFIX}/bin/epitech-upgrade" || fail "epitech-upgrade not updated"
     [ "${#FAILED[@]}" -eq 0 ] || fail "upgrade failures: ${FAILED[*]}"
 ) || exit 1
 printf '%s\n' "epitech-upgrade tools tests passed"
