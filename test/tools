@@ -1,0 +1,259 @@
+#!/usr/bin/env bash
+# Tests for bin/epitech-predeliver, bin/epitech-mem, bin/epitech-doctor and
+# the step of epitech-upgrade that keeps them current. Real projects are
+# built in a temporary directory; valgrind and the sanitizers are only used
+# when installed.
+set -uo pipefail
+
+REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." >/dev/null 2>&1 && pwd)"
+TEST_ROOT=$(mktemp -d)
+trap 'rm -rf "$TEST_ROOT"' EXIT
+export XDG_DATA_HOME="${TEST_ROOT}/data" XDG_CONFIG_HOME="${TEST_ROOT}/config"
+BIN="${REPO_DIR}/bin"
+
+fail() { printf 'FAILED: %s\n' "$*"; exit 1; }
+expect() { # expect LABEL TEXT PATTERN
+    printf '%s\n' "$2" | grep -qE -- "$3" || { printf '%s\n' "$2"; fail "$1: no match for /$3/"; }
+}
+reject() {
+    ! printf '%s\n' "$2" | grep -qE -- "$3" || { printf '%s\n' "$2"; fail "$1: unexpected /$3/"; }
+}
+
+# A small project: main.c calls write and malloc, print.c calls printf.
+make_project() {
+    local dir="$1"
+    mkdir -p "${dir}/src"
+    git -C "$dir" init -q
+    git -C "$dir" config user.email test@example.com
+    git -C "$dir" config user.name test
+    cat > "${dir}/Makefile" <<'EOF'
+NAME = demo
+SRC = src/main.c src/print.c
+OBJ = $(SRC:.c=.o)
+
+all: $(NAME)
+
+$(NAME): $(OBJ)
+	$(CC) -o $(NAME) $(OBJ)
+
+clean:
+	rm -f $(OBJ)
+
+fclean: clean
+	rm -f $(NAME)
+
+re: fclean all
+
+tests_run:
+	@echo "[====] Synthesis: Tested: 2 | Passing: 2 | Failing: 0 | Crashing: 0"
+
+.PHONY: all clean fclean re tests_run
+EOF
+    cat > "${dir}/src/main.c" <<'EOF'
+#include <stdlib.h>
+#include <unistd.h>
+
+void print_hello(char const *name);
+
+int main(void)
+{
+    char *name = malloc(5);
+
+    name[0] = 'x';
+    name[1] = '\0';
+    write(1, "hi\n", 3);
+    print_hello(name);
+    free(name);
+    return 0;
+}
+EOF
+    cat > "${dir}/src/print.c" <<'EOF'
+#include <stdio.h>
+
+void print_hello(char const *name)
+{
+    printf("hello %s\n", name);
+}
+EOF
+    git -C "$dir" add -A
+    git -C "$dir" commit -qm "first version"
+}
+
+# ------------------------------------------------------- epitech-predeliver
+PROJECT="${TEST_ROOT}/project"
+make_project "$PROJECT"
+out=$("${BIN}/epitech-predeliver" --allowed "malloc, free, write(2), printf" --run "" "$PROJECT" 2>&1)
+status=$?
+expect "clean project" "$out" "✓ Ready to deliver"
+expect "allowed list" "$out" "only authorized functions \(free malloc printf write\)"
+expect "no relink" "$out" "no relink on a second 'make'"
+expect "tests" "$out" "tests pass: Tested: 2 \| Passing: 2"
+expect "valgrind" "$out" "no memory errors or leaks|valgrind not installed"
+[ "$status" -eq 0 ] || fail "clean project: exit $status"
+
+# The list is remembered; printf missing from it is reported with its file.
+out=$("${BIN}/epitech-predeliver" --allowed "malloc free write" --no-tests "$PROJECT" 2>&1)
+status=$?
+expect "forbidden" "$out" "unauthorized functions: printf"
+expect "forbidden file" "$out" "printf: src/print.c"
+[ "$status" -eq 1 ] || fail "forbidden function: exit $status"
+out=$("${BIN}/epitech-predeliver" --no-tests "$PROJECT" 2>&1)
+expect "remembered" "$out" "unauthorized functions: printf"
+out=$("${BIN}/epitech-predeliver" --forget-allowed --no-tests "$PROJECT" 2>&1)
+expect "forgotten" "$out" "no list of authorized functions for this project; it calls: .*printf"
+
+# Delivery problems: a tracked .o, a source never added, a relinking Makefile,
+# an uncommitted change.
+(cd "$PROJECT" && cc -c src/print.c -o src/print.o && git add -f src/print.o \
+    && sed -i 's/^\.PHONY: all/.PHONY: $(NAME) all/' Makefile && git commit -qam "oops" \
+    && printf 'int unused;\n' > src/forgotten.c && printf '\n' >> src/main.c)
+out=$("${BIN}/epitech-predeliver" --no-tests "$PROJECT" 2>&1)
+status=$?
+expect "junk" "$out" "tracked build products.*C-O1"
+expect "junk file" "$out" "src/print.o"
+expect "untracked" "$out" "never added to git"
+expect "untracked file" "$out" "src/forgotten.c"
+expect "relink" "$out" "rebuilds demo \(relink\)"
+expect "uncommitted" "$out" "changed but not committed"
+expect "verdict" "$out" "✗ [0-9]+ problem\(s\) to fix"
+[ "$status" -eq 1 ] || fail "broken project: exit $status"
+
+# A file the build needs but git doesn't have fails on the fresh clone.
+BROKEN="${TEST_ROOT}/broken"
+make_project "$BROKEN"
+(cd "$BROKEN" && git rm -q --cached src/print.c && git commit -qm "lose print.c")
+out=$("${BIN}/epitech-predeliver" --no-tests "$BROKEN" 2>&1)
+expect "fresh clone" "$out" "make fails on a fresh clone"
+out=$("${BIN}/epitech-predeliver" "${TEST_ROOT}" 2>&1)
+expect "not a repository" "$out" "not inside a git repository"
+printf '%s\n' "epitech-predeliver tests passed"
+
+# --------------------------------------------------------------- epitech-mem
+MEM="${TEST_ROOT}/mem"
+mkdir -p "$MEM"
+cat > "${MEM}/leak.c" <<'EOF'
+#include <stdlib.h>
+#include <string.h>
+
+int main(void)
+{
+    char *copy = strdup("leak");
+    int *tab = malloc(sizeof(int) * 2);
+
+    tab[0] = copy[0];
+    free(tab);
+    return 3;
+}
+EOF
+cat > "${MEM}/clean.c" <<'EOF'
+#include <stdlib.h>
+
+int main(void)
+{
+    free(malloc(8));
+    return 3;
+}
+EOF
+if command -v valgrind >/dev/null 2>&1; then
+    (cd "$MEM" && cc -g -o leak leak.c && cc -g -o clean clean.c)
+    out=$(cd "$MEM" && "${BIN}/epitech-mem" ./leak 2>&1)
+    status=$?
+    expect "leak" "$out" "5 bytes in 1 blocks are definitely lost  ← leak.c:6 in main"
+    [ "$status" -eq 1 ] || fail "leak: exit $status"
+    out=$(cd "$MEM" && "${BIN}/epitech-mem" ./clean 2>&1)
+    status=$?
+    expect "clean" "$out" "✓ no memory errors, no leaks"
+    reject "clean: valgrind's log isn't an open descriptor" "$out" "Open file descriptor"
+    [ "$status" -eq 3 ] || fail "clean: the program's exit status should pass through, got $status"
+else
+    printf '%s\n' "Skipping the valgrind tests: valgrind is missing"
+fi
+
+ASAN="${TEST_ROOT}/asan"
+mkdir -p "$ASAN"
+cat > "${ASAN}/Makefile" <<'EOF'
+NAME = overflow
+OBJ = main.o
+
+all: $(NAME)
+
+$(NAME): $(OBJ)
+	$(CC) -o $(NAME) $(OBJ)
+
+clean:
+	rm -f $(OBJ)
+
+fclean: clean
+	rm -f $(NAME)
+
+re: fclean all
+EOF
+cat > "${ASAN}/main.c" <<'EOF'
+int main(void)
+{
+    char buffer[4];
+    int i = 4;
+
+    buffer[i] = 1;
+    return buffer[0];
+}
+EOF
+if printf 'int main(void){return 0;}\n' | cc -fsanitize=address -x c -o "${TEST_ROOT}/asan-probe" - 2>/dev/null; then
+    out=$(cd "$ASAN" && "${BIN}/epitech-mem" --asan ./overflow 2>&1)
+    status=$?
+    expect "asan" "$out" "stack-buffer-overflow"
+    expect "asan cleanup" "$out" "sanitized build removed"
+    [ "$status" -ne 0 ] || fail "asan: the overflow should fail"
+    [ ! -e "${ASAN}/overflow" ] && [ ! -e "${ASAN}/main.o" ] || fail "asan: the sanitized build should be removed"
+    sed -i 's/\$(CC) -o/gcc -o/' "${ASAN}/Makefile"
+    out=$(cd "$ASAN" && "${BIN}/epitech-mem" --asan ./overflow 2>&1)
+    expect "asan without \$(CC)" "$out" "must compile and link with \\$\(CC\)"
+    [ -f "${ASAN}/main.c" ] || fail "asan: the sources must survive"
+else
+    printf '%s\n' "Skipping the sanitizer tests: no AddressSanitizer runtime"
+fi
+printf '%s\n' "epitech-mem tests passed"
+
+# ------------------------------------------------------------ epitech-doctor
+# Without epiclang on PATH, the doctor says so and fails.
+EMPTY_BIN="${TEST_ROOT}/empty-bin"
+mkdir -p "$EMPTY_BIN"
+for tool in bash sed grep awk cat ls head mktemp rm printf git cc gcc timeout tr; do
+    path=$(command -v "$tool") && ln -sf "$path" "${EMPTY_BIN}/${tool}"
+done
+out=$(PATH="$EMPTY_BIN" bash "${BIN}/epitech-doctor" --quick 2>&1)
+status=$?
+expect "doctor epiclang" "$out" "✗ epiclang is missing"
+expect "doctor fix" "$out" "fix: epitech-upgrade --force"
+expect "doctor verdict" "$out" "✗ [0-9]+ thing\(s\) to fix"
+[ "$status" -eq 1 ] || fail "doctor: exit $status"
+printf '%s\n' "epitech-doctor tests passed"
+
+# ------------------------------------------- epitech-upgrade: the commands
+SOURCE_REPO="${TEST_ROOT}/source"
+mkdir -p "${SOURCE_REPO}/bin" "${TEST_ROOT}/home/.local/bin"
+cp "${BIN}"/epitech-* "${SOURCE_REPO}/bin/"
+git -C "$SOURCE_REPO" init -q
+git -C "$SOURCE_REPO" add .
+git -C "$SOURCE_REPO" -c user.name=test -c user.email=test@example.com commit -qm source
+(
+    export EPITECH_REPO_URL="file://${SOURCE_REPO}"
+    # shellcheck source=../epitech-upgrade
+    . "${REPO_DIR}/epitech-upgrade"
+    PREFIX="${TEST_ROOT}/home/.local"
+    CHECK_ONLY=1
+    mkdir -p "${TEST_ROOT}/u1"
+    out=$(do_tools "${TEST_ROOT}/u1")
+    expect "upgrade check" "$out" "update available for epitech-doctor"
+    [ ! -e "${PREFIX}/bin/epitech-doctor" ] || fail "--check must not install"
+    CHECK_ONLY=0
+    mkdir -p "${TEST_ROOT}/u2"
+    out=$(do_tools "${TEST_ROOT}/u2")
+    expect "upgrade apply" "$out" "epitech-predeliver updated"
+    [ -x "${PREFIX}/bin/epitech-mem" ] || fail "epitech-mem not installed"
+    mkdir -p "${TEST_ROOT}/u3"
+    out=$(do_tools "${TEST_ROOT}/u3")
+    expect "upgrade again" "$out" "up to date"
+    [ "${#FAILED[@]}" -eq 0 ] || fail "upgrade failures: ${FAILED[*]}"
+) || exit 1
+printf '%s\n' "epitech-upgrade tools tests passed"

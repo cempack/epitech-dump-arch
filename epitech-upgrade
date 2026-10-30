@@ -7,6 +7,8 @@
 #                      the PPA is the school's distribution channel).
 #   epitech-emacs      config tracks GitHub HEAD (Epitech/epitech-emacs).
 #   vim-epitech        config tracks GitHub HEAD (Epitech/vim-epitech).
+#   epitech-doctor, epitech-predeliver, epitech-mem
+#                      track this project's HEAD (cempack/epitech-dump-arch).
 #   epitech.nvim       plugin tracks GitHub HEAD (cempack/epitech.nvim) through
 #                      lazy.nvim; the LazyVim spec tracks this project's HEAD.
 #                      LazyVim and other plugins are never updated here.
@@ -224,6 +226,36 @@ EOF
     ok "installed $head"
 }
 
+# A checkout of this project's HEAD, cloned once per run.
+dump_checkout() {
+    local dir="${1}/epitech-dump-arch"
+    [ -d "${dir}/.git" ] || git clone -q --depth 1 "$EPITECH_REPO_URL" "$dir" 2>/dev/null || return 1
+    printf '%s' "$dir"
+}
+
+# epitech-doctor, epitech-predeliver and epitech-mem follow this project.
+do_tools() {
+    local dir tool name target changed=0
+    log "epitech-* commands (track ${EPITECH_REPO_URL}):"
+    dir=$(dump_checkout "$1") || { fail "epitech-* commands (repository download failed)"; return; }
+    for tool in "${dir}"/bin/epitech-*; do
+        [ -f "$tool" ] || continue
+        name=$(basename "$tool")
+        target="${PREFIX}/bin/${name}"
+        if [ "$FORCE" -eq 0 ] && cmp -s "$tool" "$target"; then
+            continue
+        fi
+        changed=1
+        if [ "$CHECK_ONLY" -eq 1 ]; then
+            info "update available for ${name}"
+        else
+            install -m 755 "$tool" "$target" || { fail "${name} (install failed)"; continue; }
+            ok "${name} updated"
+        fi
+    done
+    [ "$changed" -eq 0 ] && ok "up to date"
+}
+
 do_nvim_cfg() {
     local tmp="$1" dir="${1}/epitech-dump-arch"
     local config_home="${XDG_CONFIG_HOME:-${HOME}/.config}"
@@ -236,7 +268,7 @@ do_nvim_cfg() {
         return
     fi
 
-    git clone -q --depth 1 "$EPITECH_REPO_URL" "$dir" 2>/dev/null \
+    dir=$(dump_checkout "$tmp") \
         || { fail "Neovim Epitech integration (repository download failed)"; return; }
     [ -f "${dir}/lib/neovim.sh" ] \
         || { fail "Neovim Epitech integration (installer library missing)"; return; }
@@ -295,6 +327,7 @@ main() {
     do_emacs_cfg "$UPGRADE_TMP_DIR"
     do_vim_cfg "$UPGRADE_TMP_DIR"
     do_nvim_cfg "$UPGRADE_TMP_DIR"
+    do_tools "$UPGRADE_TMP_DIR"
     do_criterion_check
     do_teams_check
 

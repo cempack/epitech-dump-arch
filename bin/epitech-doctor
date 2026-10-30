@@ -1,0 +1,225 @@
+#!/usr/bin/env bash
+# epitech-doctor — check that the Epitech setup works, and say how to fix
+# what doesn't.
+#
+# Usage: epitech-doctor [--quick]
+#   --quick   skip the slower checks (compiling Criterion and CSFML tests,
+#             starting Neovim)
+#
+# Exit status: 0 when everything required works, 1 otherwise.
+
+set -u
+
+QUICK=0
+FAILS=0
+WARNS=0
+DATA_HOME="${XDG_DATA_HOME:-${HOME}/.local/share}"
+CONFIG_HOME="${XDG_CONFIG_HOME:-${HOME}/.config}"
+if [ -t 1 ]; then
+    GREEN=$'\e[32m' RED=$'\e[31m' YELLOW=$'\e[33m' BOLD=$'\e[1m' DIM=$'\e[2m' RESET=$'\e[0m'
+else
+    GREEN="" RED="" YELLOW="" BOLD="" DIM="" RESET=""
+fi
+section() { printf '\n%s%s%s\n' "$BOLD" "$*" "$RESET"; }
+good()    { printf '  %s✓%s %s\n' "$GREEN" "$RESET" "$*"; }
+bad()     { printf '  %s✗%s %s\n' "$RED" "$RESET" "$1"; [ -n "${2:-}" ] && printf '    %sfix: %s%s\n' "$DIM" "$2" "$RESET"; FAILS=$((FAILS + 1)); }
+meh()     { printf '  %s!%s %s\n' "$YELLOW" "$RESET" "$1"; [ -n "${2:-}" ] && printf '    %sfix: %s%s\n' "$DIM" "$2" "$RESET"; WARNS=$((WARNS + 1)); }
+usage()   { sed -n '2,/^$/p' "$0" | sed 's/^# //; s/^#//'; }
+
+for arg in "$@"; do
+    case "$arg" in
+        --quick) QUICK=1 ;;
+        -h|--help) usage; exit 0 ;;
+        *) printf 'unknown option: %s\n' "$arg"; usage; exit 2 ;;
+    esac
+done
+
+TMP=$(mktemp -d)
+trap 'rm -rf "$TMP"' EXIT
+REINSTALL="re-run the installer (install.sh, see the README)"
+
+# A required command: ✗ when missing. $2 is how to get it.
+need() {
+    if command -v "$1" >/dev/null 2>&1; then
+        good "$1${3:+ ($3)}"
+    else
+        bad "$1 is missing" "$2"
+    fi
+}
+# A command that helps but isn't required: ! when missing.
+want() {
+    if command -v "$1" >/dev/null 2>&1; then
+        good "$1"
+    else
+        meh "$1 is missing" "$2"
+    fi
+}
+
+printf '%sepitech-doctor%s\n' "$BOLD" "$RESET"
+
+section "System"
+case ":${PATH}:" in
+    *":${HOME}/.local/bin:"*) good "~/.local/bin is on PATH" ;;
+    *) bad "~/.local/bin is not on PATH: epiclang and the epitech-* commands won't be found" \
+        "add 'export PATH=\"\$HOME/.local/bin:\$PATH\"' to your shell's rc file" ;;
+esac
+if command -v pacman >/dev/null 2>&1; then
+    good "Arch-based system ($(. /etc/os-release 2>/dev/null; printf '%s' "${PRETTY_NAME:-unknown}"))"
+else
+    meh "not an Arch-based system: the installer's package step won't run here"
+fi
+
+section "Compiling and testing"
+need gcc "sudo pacman -S gcc"
+need clang "sudo pacman -S clang"
+need make "sudo pacman -S make"
+if command -v clang-format >/dev/null 2>&1; then
+    version=$(clang-format --version | sed -E 's/.*version ([0-9]+).*/\1/')
+    if [ "${version:-0}" -ge 21 ] 2>/dev/null; then
+        good "clang-format $version"
+    else
+        bad "clang-format $version is too old: the Epitech style needs 21 or newer" "sudo pacman -S clang"
+    fi
+else
+    bad "clang-format is missing" "sudo pacman -S clang"
+fi
+need valgrind "sudo pacman -S valgrind"
+need gdb "sudo pacman -S gdb"
+want gcovr "sudo pacman -S gcovr (coverage reports)"
+if [ "$QUICK" -eq 0 ]; then
+    cat > "$TMP/test.c" <<'EOF'
+#include <criterion/criterion.h>
+
+Test(doctor, works)
+{
+    cr_assert_eq(1, 1);
+}
+EOF
+    if cc -o "$TMP/test" "$TMP/test.c" -lcriterion >/dev/null 2>&1 && "$TMP/test" >/dev/null 2>&1; then
+        good "Criterion: a test compiles and runs"
+    else
+        bad "Criterion: a test doesn't compile or run" "sudo pacman -S criterion"
+    fi
+    cat > "$TMP/csfml.c" <<'EOF'
+#include <SFML/System.h>
+
+int main(void)
+{
+    sfClock *clock = sfClock_create();
+
+    sfClock_destroy(clock);
+    return 0;
+}
+EOF
+    if cc -o "$TMP/csfml" "$TMP/csfml.c" -lcsfml-system >/dev/null 2>&1 && "$TMP/csfml" >/dev/null 2>&1; then
+        good "CSFML: a program links and runs"
+    else
+        bad "CSFML: a program doesn't link" "sudo pacman -S csfml"
+    fi
+fi
+
+section "Coding style"
+if command -v epiclang >/dev/null 2>&1; then
+    printf 'int main()\n{\n    return 0;\n}\n' > "$TMP/style.c"
+    if epiclang -x c -fsyntax-only "$TMP/style.c" 2>&1 | grep -q '\[Banana\]'; then
+        good "epiclang reports Banana's checks"
+    else
+        bad "epiclang runs but Banana reports nothing on a file that breaks the style" "epitech-upgrade --force"
+    fi
+else
+    bad "epiclang is missing" "epitech-upgrade --force"
+fi
+need banana-check-repo "epitech-upgrade --force"
+if [ -f "${HOME}/.vim/epitech.vim" ]; then
+    good "Epitech Vim config (~/.vim/epitech.vim, also used by the Neovim formatter)"
+else
+    bad "~/.vim/epitech.vim is missing: Neovim's formatter needs it" "epitech-upgrade --force"
+fi
+
+section "Editors"
+need emacs "sudo pacman -S emacs"
+need epitech-emacs "$REINSTALL"
+need vim "sudo pacman -S vim"
+if command -v nvim >/dev/null 2>&1; then
+    if nvim --clean --headless -u NONE "+lua if vim.fn.has('nvim-0.11.2') == 0 then vim.cmd('cquit 1') end" +qa \
+        >/dev/null 2>&1; then
+        good "nvim $(nvim --version | head -1 | sed 's/^NVIM //')"
+    else
+        bad "Neovim is older than 0.11.2, which LazyVim needs" "sudo pacman -S neovim"
+    fi
+else
+    bad "nvim is missing" "sudo pacman -S neovim"
+fi
+if [ -f "${CONFIG_HOME}/nvim/lua/config/lazy.lua" ]; then
+    good "LazyVim configuration"
+else
+    meh "no LazyVim configuration in ${CONFIG_HOME}/nvim" "$REINSTALL (an existing non-LazyVim config is left alone)"
+fi
+if [ -f "${CONFIG_HOME}/nvim/lua/plugins/epitech-dump-arch.lua" ]; then
+    good "Epitech plugin spec for LazyVim"
+else
+    meh "the Epitech plugin spec isn't installed" "$REINSTALL"
+fi
+if [ -d "${DATA_HOME}/nvim/lazy/epitech.nvim" ]; then
+    good "epitech.nvim installed by lazy.nvim"
+    if [ "$QUICK" -eq 0 ] && command -v nvim >/dev/null 2>&1; then
+        if timeout 60 nvim --headless "+lua local ok = pcall(require, 'epitech'); if not ok then vim.cmd('cquit 1') end" +qa \
+            >/dev/null 2>&1; then
+            good "epitech.nvim loads in your Neovim"
+        else
+            bad "epitech.nvim doesn't load in your Neovim" "open nvim and run :Lazy sync, then :checkhealth"
+        fi
+    fi
+else
+    meh "epitech.nvim isn't installed yet" "start nvim once: lazy.nvim installs it"
+fi
+want mbake "$REINSTALL (Makefile formatter)"
+
+section "Git and GitHub"
+need git "sudo pacman -S git"
+if [ -n "$(git config --global user.name 2>/dev/null)" ] && [ -n "$(git config --global user.email 2>/dev/null)" ]; then
+    good "git identity: $(git config --global user.name) <$(git config --global user.email)>"
+else
+    bad "git has no name or email: commits will be refused or anonymous" \
+        "git config --global user.name \"First Last\" && git config --global user.email first.last@epitech.eu"
+fi
+if ls "${HOME}"/.ssh/id_*.pub >/dev/null 2>&1; then
+    good "SSH key ($(ls "${HOME}"/.ssh/id_*.pub | head -1 | sed "s|${HOME}|~|"))"
+else
+    meh "no SSH key: you'll need one to push to your Epitech repositories" \
+        "ssh-keygen -t ed25519, then add ~/.ssh/id_ed25519.pub to GitHub and the intranet"
+fi
+want lazygit "sudo pacman -S lazygit"
+if command -v gh >/dev/null 2>&1; then
+    if gh auth status >/dev/null 2>&1; then
+        good "gh, logged in"
+    else
+        meh "gh isn't logged in" "gh auth login"
+    fi
+else
+    meh "gh is missing" "sudo pacman -S github-cli"
+fi
+
+section "Updates"
+need epitech-upgrade "$REINSTALL"
+if command -v systemctl >/dev/null 2>&1 && systemctl --user is-enabled epitech-upgrade.timer >/dev/null 2>&1; then
+    next=$(systemctl --user list-timers epitech-upgrade.timer --no-legend 2>/dev/null | awk '{print $1, $2, $3}')
+    good "weekly update timer enabled${next:+ (next: $next)}"
+else
+    meh "the weekly update timer isn't enabled" "systemctl --user enable --now epitech-upgrade.timer"
+fi
+for tool in epitech-predeliver epitech-mem; do
+    need "$tool" "$REINSTALL"
+done
+
+printf '\n'
+if [ "$FAILS" -eq 0 ]; then
+    printf '%s✓ Everything required works%s' "$GREEN$BOLD" "$RESET"
+    [ "$WARNS" -gt 0 ] && printf ' (%d optional thing(s) above)' "$WARNS"
+    printf '\n'
+    exit 0
+fi
+printf '%s✗ %d thing(s) to fix%s' "$RED$BOLD" "$FAILS" "$RESET"
+[ "$WARNS" -gt 0 ] && printf ', %d optional' "$WARNS"
+printf '\n'
+exit 1

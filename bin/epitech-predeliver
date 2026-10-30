@@ -1,0 +1,392 @@
+#!/usr/bin/env bash
+# epitech-predeliver — check a project the way the moulinette will see it.
+#
+# It works on what is committed: the repository is cloned to a temporary
+# directory, built and tested there, so a file you forgot to add shows up.
+#
+# Usage: epitech-predeliver [options] [project directory]
+#   --allowed LIST   the subject's authorized functions ("malloc, free,
+#                    write(2), sf*"); remembered for this project
+#   --forget-allowed forget the remembered list
+#   --run "ARGS"     also run the program with ARGS under valgrind
+#   --no-tests       skip the unit tests
+#   --keep           keep the temporary clone and print where it is
+#   -h, --help       show this help
+#
+# Exit status: 0 when nothing blocks the delivery, 1 otherwise.
+
+set -u
+
+ALLOWED_DIR="${XDG_DATA_HOME:-${HOME}/.local/share}/epitech-dump-arch/allowed"
+ALLOWED_ARG=""
+FORGET=0
+RUN_ARGS=""
+RUN=0
+TESTS=1
+KEEP=0
+DIR="."
+ERRORS=0
+WARNINGS=0
+
+if [ -t 1 ]; then
+    GREEN=$'\e[32m' RED=$'\e[31m' YELLOW=$'\e[33m' BOLD=$'\e[1m' DIM=$'\e[2m' RESET=$'\e[0m'
+else
+    GREEN="" RED="" YELLOW="" BOLD="" DIM="" RESET=""
+fi
+section() { printf '\n%s%s%s\n' "$BOLD" "$*" "$RESET"; }
+pass()    { printf '  %s✓%s %s\n' "$GREEN" "$RESET" "$*"; }
+block()   { printf '  %s✗%s %s\n' "$RED" "$RESET" "$*"; ERRORS=$((ERRORS + 1)); }
+warn()    { printf '  %s!%s %s\n' "$YELLOW" "$RESET" "$*"; WARNINGS=$((WARNINGS + 1)); }
+note()    { printf '    %s%s%s\n' "$DIM" "$*" "$RESET"; }
+skip()    { printf '  %s-%s %s\n' "$DIM" "$RESET" "$*"; }
+usage()   { sed -n '2,/^$/p' "$0" | sed 's/^# //; s/^#//'; }
+
+while [ $# -gt 0 ]; do
+    case "$1" in
+        --allowed) ALLOWED_ARG="${2:-}"; shift ;;
+        --forget-allowed) FORGET=1 ;;
+        --run) RUN=1; RUN_ARGS="${2:-}"; shift ;;
+        --no-tests) TESTS=0 ;;
+        --keep) KEEP=1 ;;
+        -h|--help) usage; exit 0 ;;
+        -*) printf 'unknown option: %s\n' "$1"; usage; exit 2 ;;
+        *) DIR="$1" ;;
+    esac
+    shift
+done
+
+ROOT=$(git -C "$DIR" rev-parse --show-toplevel 2>/dev/null) \
+    || { printf '%s is not inside a git repository: deliveries are git repositories.\n' "$DIR"; exit 2; }
+cd "$ROOT" || exit 2
+ALLOWED_FILE="${ALLOWED_DIR}/$(printf '%s' "$ROOT" | sed 's|/|%|g')"
+
+printf '%sepitech-predeliver%s %s\n' "$BOLD" "$RESET" "$ROOT"
+
+# ---------------------------------------------------------------- repository
+section "Repository"
+branch=$(git branch --show-current)
+pass "branch ${branch:-(detached HEAD)}, last commit $(git log -1 --format='%h %s' 2>/dev/null || echo none)"
+
+changes=$(git status --porcelain --untracked-files=no | wc -l)
+if [ "$changes" -gt 0 ]; then
+    warn "$changes tracked file(s) changed but not committed: the moulinette won't see them"
+    git status --porcelain --untracked-files=no | head -5 | while read -r line; do note "$line"; done
+else
+    pass "no uncommitted changes"
+fi
+
+untracked=$(git ls-files --others --exclude-standard -- '*.c' '*.h' 'Makefile' '*/Makefile')
+if [ -n "$untracked" ]; then
+    block "source files never added to git (the build will miss them):"
+    printf '%s\n' "$untracked" | head -10 | while read -r file; do note "$file"; done
+else
+    pass "every .c, .h and Makefile is tracked"
+fi
+
+if upstream=$(git rev-parse --abbrev-ref '@{upstream}' 2>/dev/null); then
+    ahead=$(git rev-list --count '@{upstream}..HEAD')
+    if [ "$ahead" -gt 0 ]; then
+        block "$ahead commit(s) not pushed to $upstream"
+    else
+        pass "everything is pushed to $upstream"
+    fi
+else
+    warn "no upstream branch: push with 'git push -u origin ${branch:-HEAD}'"
+fi
+
+# C-O1: files a delivery must not contain.
+junk=$(git ls-files | grep -E '(\.(o|a|so|gcda|gcno|gcov|swp|orig)$|~$|(^|/)#[^/]*#$|(^|/)vgcore\.[0-9]+$|(^|/)a\.out$|(^|/)unit_tests$|(^|/)\.(vscode|idea)/|(^|/)\.DS_Store$)' || true)
+while IFS= read -r file; do
+    # Tracked executables that aren't scripts are build products.
+    if [ -f "$file" ] && [ -x "$file" ] && head -c 4 "$file" 2>/dev/null | grep -q $'\x7fELF'; then
+        junk=$(printf '%s\n%s' "$junk" "$file")
+    fi
+done < <(git ls-files)
+junk=$(printf '%s\n' "$junk" | sed '/^$/d' | sort -u)
+if [ -n "$junk" ]; then
+    block "tracked build products or temporary files (C-O1):"
+    printf '%s\n' "$junk" | head -10 | while read -r file; do note "$file"; done
+    note "untrack them: git rm --cached <file>, then add their pattern to .gitignore"
+else
+    pass "no build products or temporary files tracked"
+fi
+
+big=$(git ls-files -z | xargs -0 -r du -k 2>/dev/null | awk '$1 > 1024 {print $2 " (" int($1 / 1024) " MB)"}')
+if [ -n "$big" ]; then
+    warn "large files tracked:"
+    printf '%s\n' "$big" | head -5 | while read -r file; do note "$file"; done
+fi
+
+if command -v banana-check-repo >/dev/null 2>&1; then
+    if output=$(banana-check-repo 2>&1); then
+        pass "banana-check-repo found nothing"
+    else
+        block "banana-check-repo:"
+        printf '%s\n' "$output" | head -10 | while IFS= read -r line; do note "$line"; done
+    fi
+else
+    skip "banana-check-repo not installed"
+fi
+
+# ------------------------------------------------------------------- build
+section "Build (fresh clone of HEAD)"
+CLONE=$(mktemp -d)
+if [ "$KEEP" -eq 0 ]; then
+    trap 'rm -rf "$CLONE"' EXIT
+fi
+git clone -q "$ROOT" "$CLONE/project" 2>/dev/null || { block "could not clone the repository"; exit 1; }
+cd "$CLONE/project" || exit 1
+
+NAME=""
+BUILT=0
+if [ ! -f Makefile ]; then
+    block "no Makefile at the root of the repository"
+else
+    NAME=$(sed -n 's/^[[:space:]]*NAME[[:space:]]*:\{0,1\}=[[:space:]]*\([^[:space:]#]*\).*/\1/p' Makefile | head -1)
+    case "$NAME" in *'$('*) NAME="" ;; esac
+    for rule in all clean fclean re; do
+        if ! make -n "$rule" >/dev/null 2>&1; then
+            block "rule '$rule' is missing or broken"
+        fi
+    done
+    if build=$(make 2>&1); then
+        BUILT=1
+        pass "make succeeds"
+        warnings=$(printf '%s\n' "$build" | grep -c 'warning:' | tr -d ' ')
+        banana=$(printf '%s\n' "$build" | grep -c '\[Banana\]' | tr -d ' ')
+        compiler=$((warnings - banana))
+        if [ "$compiler" -gt 0 ]; then
+            warn "$compiler compiler warning(s):"
+            printf '%s\n' "$build" | grep 'warning:' | grep -v '\[Banana\]' | head -5 \
+                | while IFS= read -r line; do note "$line"; done
+        fi
+    else
+        block "make fails on a fresh clone (a file missing from git?):"
+        printf '%s\n' "$build" | grep -E 'error|Error|No rule' | head -8 | while IFS= read -r line; do note "$line"; done
+    fi
+fi
+
+if [ "$BUILT" -eq 1 ]; then
+    if [ -z "$NAME" ]; then
+        warn "no NAME = … in the Makefile: can't check the binary"
+    elif [ ! -e "$NAME" ]; then
+        block "make didn't produce $NAME"
+    else
+        pass "$NAME is built"
+        before=$(stat -c %Y.%s "$NAME")
+        sleep 1
+        relink=$(make 2>&1)
+        after=$(stat -c %Y.%s "$NAME")
+        if [ "$before" != "$after" ]; then
+            block "a second 'make' rebuilds $NAME (relink): only rebuild when a source changes"
+        elif printf '%s\n' "$relink" | grep -qE '(^|[[:space:]])(cc|gcc|clang|epiclang|ar)[[:space:]]'; then
+            block "a second 'make' runs the compiler again (relink)"
+        else
+            pass "no relink on a second 'make'"
+        fi
+        make clean >/dev/null 2>&1
+        if [ -n "$(find . -name '*.o' -not -path './.git/*' -print -quit)" ]; then
+            warn "'make clean' leaves .o files behind"
+        fi
+        make fclean >/dev/null 2>&1
+        if [ -e "$NAME" ]; then
+            block "'make fclean' doesn't remove $NAME"
+        else
+            pass "clean and fclean remove what they should"
+        fi
+        if make re >/dev/null 2>&1 && [ -e "$NAME" ]; then
+            pass "make re rebuilds $NAME"
+        else
+            block "'make re' doesn't rebuild $NAME"
+        fi
+    fi
+fi
+
+# ------------------------------------------------------------ coding style
+section "Coding style"
+CHECK_SCRIPT="${XDG_DATA_HOME:-${HOME}/.local/share}/nvim/lazy/epitech.nvim/scripts/check.lua"
+if ! command -v epiclang >/dev/null 2>&1; then
+    skip "epiclang not installed"
+elif [ -f "$CHECK_SCRIPT" ] && command -v nvim >/dev/null 2>&1; then
+    style=$(nvim --clean --headless -l "$CHECK_SCRIPT" --ci "$CLONE/project" 2>&1)
+    status=$?
+    summary=$(printf '%s\n' "$style" | tail -1)
+    if [ "$status" -ne 0 ]; then
+        block "Banana: $summary"
+        printf '%s\n' "$style" | grep -E '\[(Fatal|Major)\]' | head -10 | while IFS= read -r line; do note "$line"; done
+    elif printf '%s\n' "$style" | grep -qE '\[(Minor|Info)\]'; then
+        warn "Banana: $summary"
+        printf '%s\n' "$style" | grep -E '\[(Minor|Info)\]' | head -5 | while IFS= read -r line; do note "$line"; done
+    else
+        pass "Banana: nothing to report"
+    fi
+else
+    reports=""
+    while IFS= read -r file; do
+        reports="${reports}$(epiclang -x c -fsyntax-only -I include "$file" 2>&1 | grep '\[Banana\]' | sort -u)"$'\n'
+    done < <(git ls-files -- '*.c' '*.h')
+    reports=$(printf '%s' "$reports" | sed '/^$/d')
+    if [ -z "$reports" ]; then
+        pass "Banana: nothing to report"
+    elif printf '%s\n' "$reports" | grep -qE '\[(Fatal|Major)\]'; then
+        block "Banana: $(printf '%s\n' "$reports" | wc -l | tr -d ' ') report(s), Fatal or Major among them"
+        printf '%s\n' "$reports" | grep -E '\[(Fatal|Major)\]' | head -10 | while IFS= read -r line; do note "$line"; done
+    else
+        warn "Banana: $(printf '%s\n' "$reports" | wc -l | tr -d ' ') Minor or Info report(s)"
+        printf '%s\n' "$reports" | head -5 | while IFS= read -r line; do note "$line"; done
+    fi
+fi
+
+# ------------------------------------------------------- allowed functions
+section "Authorized functions"
+if [ "$FORGET" -eq 1 ]; then
+    rm -f "$ALLOWED_FILE"
+    note "forgot the remembered list"
+fi
+if [ -n "$ALLOWED_ARG" ]; then
+    mkdir -p "$ALLOWED_DIR"
+    # "malloc, free, write(2)" → one name per line.
+    printf '%s\n' "$ALLOWED_ARG" | tr ',;' '  ' | tr -s ' \t' '\n' | sed 's/([0-9a-z]*)$//' \
+        | sed '/^$/d' | sort -u > "$ALLOWED_FILE"
+    note "remembered for this project (--forget-allowed to drop it)"
+fi
+
+# The functions a binary or a library calls from outside, with the names the
+# toolchain gives them turned back into the ones in your code.
+external_symbols() {
+    local target="$1" defined undefined
+    if [[ "$target" == *.a ]]; then
+        defined=$(nm "$target" 2>/dev/null | awk '$2 ~ /^[TDBRWV]$/ {print $3}' | sort -u)
+        undefined=$(nm -u "$target" 2>/dev/null | awk '/ U / {print $2}' | sort -u)
+        comm -23 <(printf '%s\n' "$undefined") <(printf '%s\n' "$defined")
+    else
+        nm -u "$target" 2>/dev/null | awk '{print $NF}' | sort -u
+    fi | sed 's/@.*//' | sed -E 's/^__(.*)_chk$/\1/; s/^__isoc(99|23)_//; s/^__errno_location$/errno/; s/^__assert_fail$/assert/' \
+        | grep -vE '^(__libc_start_main|__gmon_start__|_ITM_.*|__cxa_finalize|__cxa_atexit|__stack_chk_(fail|guard)|_Jv_RegisterClasses|__gcov_.*|__asan_.*|__ubsan_.*|__lsan_.*|__sanitizer_.*|__ctype_(b|tolower|toupper)_loc|_GLOBAL_OFFSET_TABLE_|__dso_handle|__libc_csu_.*|_init|_fini|_start|__data_start|__bss_start|_edata|_end|_IO_stdin_used|__TMC_END__|__progname.*)$' \
+        | sed '/^$/d' | sort -u
+}
+
+allowed_match() {
+    local name="$1" pattern
+    while IFS= read -r pattern; do
+        # shellcheck disable=SC2053
+        [[ "$name" == $pattern ]] && return 0
+    done < "$ALLOWED_FILE"
+    return 1
+}
+
+if [ "$BUILT" -eq 0 ] || [ -z "$NAME" ]; then
+    skip "nothing built to inspect"
+elif [ ! -f "$ALLOWED_FILE" ]; then
+    used=$(make >/dev/null 2>&1; external_symbols "$NAME" | tr '\n' ' ')
+    warn "no list of authorized functions for this project; it calls: ${used:-nothing}"
+    note "set it once from the subject: epitech-predeliver --allowed \"malloc, free, write\""
+else
+    make >/dev/null 2>&1
+    forbidden="" generated=""
+    while IFS= read -r symbol; do
+        allowed_match "$symbol" && continue
+        # The compiler writes some calls itself: printf("text\n") becomes
+        # puts, printf("%c", c) putchar, fprintf with a plain string fputs or
+        # fwrite, and `char buf[64] = {0}` or a struct copy memset or memcpy.
+        case "$symbol" in
+            puts|putchar) allowed_match printf && { generated="${generated}${symbol} (from printf) "; continue; } ;;
+            fputs|fputc|fwrite) allowed_match fprintf && { generated="${generated}${symbol} (from fprintf) "; continue; } ;;
+            memset|memcpy|memmove)
+                warn "$symbol isn't authorized, but the compiler emits it for array initializers and struct copies: check you don't call it"
+                continue ;;
+        esac
+        forbidden="${forbidden}${symbol} "
+    done < <(external_symbols "$NAME")
+    [ -n "$generated" ] && note "compiler substitutions accepted: ${generated% }"
+    if [ -z "$forbidden" ]; then
+        pass "only authorized functions ($(tr '\n' ' ' < "$ALLOWED_FILE" | sed 's/ $//'))"
+    else
+        block "unauthorized functions: ${forbidden% }"
+        for symbol in $forbidden; do
+            users=$(for object in $(find . -name '*.o' -not -path './.git/*'); do
+                nm -u "$object" 2>/dev/null | sed 's/@.*//' | awk '{print $NF}' \
+                    | sed -E 's/^__(.*)_chk$/\1/; s/^__isoc(99|23)_//; s/^__errno_location$/errno/' \
+                    | grep -qx "$symbol" && printf '%s ' "${object#./}"
+            done | sed 's/\.o /.c /g; s/ $//')
+            case "$symbol" in
+                puts|putchar) hint=" (a printf of a plain string or one character compiles to $symbol)" ;;
+                fputs|fputc|fwrite) hint=" (an fprintf of a plain string compiles to $symbol)" ;;
+                *) hint="" ;;
+            esac
+            note "$symbol: ${users:-in a library you link}${hint}"
+        done
+    fi
+fi
+
+# ------------------------------------------------------------------- tests
+section "Unit tests"
+if [ "$TESTS" -eq 0 ]; then
+    skip "skipped (--no-tests)"
+elif ! grep -qE '^tests_run[[:space:]]*:' Makefile 2>/dev/null; then
+    warn "no tests_run rule: the moulinette runs 'make tests_run' when the subject asks for unit tests"
+else
+    make fclean >/dev/null 2>&1
+    if grep -qE '^unit_tests[[:space:]]*:' Makefile && make unit_tests >/dev/null 2>&1 && [ -x ./unit_tests ]; then
+        tests=$(./unit_tests 2>&1)
+        status=$?
+    else
+        tests=$(make tests_run 2>&1)
+        status=$?
+    fi
+    synthesis=$(printf '%s\n' "$tests" | sed 's/\x1b\[[0-9;]*m//g' | grep 'Synthesis' | tail -1 | sed 's/.*Synthesis: //')
+    if [ "$status" -eq 0 ]; then
+        pass "tests pass${synthesis:+: $synthesis}"
+    else
+        block "tests fail${synthesis:+: $synthesis}"
+        printf '%s\n' "$tests" | sed 's/\x1b\[[0-9;]*m//g' | grep -E '\[FAIL\]|Assertion|CRASH' | head -8 \
+            | while IFS= read -r line; do note "$line"; done
+    fi
+    if command -v gcovr >/dev/null 2>&1 && [ -n "$(find . -name '*.gcda' -print -quit)" ]; then
+        coverage=$(gcovr -r . --exclude 'tests/' -s 2>/dev/null | grep -E '^(lines|branches):')
+        [ -n "$coverage" ] && printf '%s\n' "$coverage" | while IFS= read -r line; do note "coverage $line"; done
+    fi
+fi
+
+# ------------------------------------------------------------------ memory
+if [ "$RUN" -eq 1 ]; then
+    section "Memory (valgrind ./$NAME $RUN_ARGS)"
+    if [ -z "$NAME" ]; then
+        skip "no binary to run"
+    elif ! command -v valgrind >/dev/null 2>&1; then
+        skip "valgrind not installed"
+    else
+        make >/dev/null 2>&1
+        log="$CLONE/valgrind.log"
+        # shellcheck disable=SC2086
+        valgrind --leak-check=full --show-leak-kinds=definite,indirect --errors-for-leak-kinds=definite,indirect \
+            --track-origins=yes --log-file="$log" "./$NAME" $RUN_ARGS >/dev/null 2>&1 < /dev/null
+        errors=$(grep -E 'ERROR SUMMARY: [0-9]+' "$log" | tail -1 | sed -E 's/.*ERROR SUMMARY: ([0-9]+).*/\1/')
+        lost=$(grep -E 'definitely lost:' "$log" | tail -1 | sed 's/^==[0-9]*== *//')
+        if [ "${errors:-0}" -eq 0 ]; then
+            pass "no memory errors or leaks"
+        else
+            block "$errors memory error(s)"
+            grep -E 'Invalid|uninitialised|are (definitely|indirectly) lost' "$log" | sed 's/^==[0-9]*== *//' \
+                | sed 's/ in loss record.*//' | sort -u | head -6 | while IFS= read -r line; do note "$line"; done
+            [ -n "$lost" ] && note "total $lost"
+            note "details: epitech-mem ./$NAME $RUN_ARGS"
+        fi
+    fi
+fi
+
+# ----------------------------------------------------------------- verdict
+printf '\n'
+if [ "$KEEP" -eq 1 ]; then
+    note "clone kept in $CLONE/project"
+fi
+if [ "$ERRORS" -eq 0 ]; then
+    printf '%s✓ Ready to deliver%s' "$GREEN$BOLD" "$RESET"
+    [ "$WARNINGS" -gt 0 ] && printf ' (%d warning(s) worth a look)' "$WARNINGS"
+    printf '\n'
+    exit 0
+fi
+printf '%s✗ %d problem(s) to fix before delivering%s' "$RED$BOLD" "$ERRORS" "$RESET"
+[ "$WARNINGS" -gt 0 ] && printf ', %d warning(s)' "$WARNINGS"
+printf '\n'
+exit 1

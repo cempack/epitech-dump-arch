@@ -118,6 +118,10 @@ log "Epitech tooling:"
 mkdir -p "${HOME}/.local/bin"
 cp "${REPO_DIR}/epitech-upgrade" "${HOME}/.local/bin/epitech-upgrade"
 chmod +x "${HOME}/.local/bin/epitech-upgrade"
+for tool in "${REPO_DIR}"/bin/epitech-*; do
+    install -m 755 "$tool" "${HOME}/.local/bin/$(basename "$tool")" || die "could not install $(basename "$tool")"
+done
+ok "epitech-doctor, epitech-predeliver and epitech-mem installed"
 "${HOME}/.local/bin/epitech-upgrade" --force || die "epitech-upgrade failed"
 
 cat > "${HOME}/.local/bin/epitech-emacs" <<'EOF'
@@ -155,7 +159,9 @@ case ":${PATH}:" in
 esac
 log ""
 log "Epitech dump installed. Commands: epiclang, banana-check-repo,"
-log "  epitech-emacs, epitech-upgrade, teams-for-linux, nvim."
+log "  epitech-emacs, epitech-upgrade, teams-for-linux, nvim,"
+log "  epitech-doctor (is everything working?), epitech-predeliver (is this"
+log "  project ready to push?), epitech-mem (leaks and memory errors)."
 log "LazyVim: <leader>cf formats C; <leader>cH inserts an Epitech header."
 log "         <leader>cG adds a filename-based include guard to a .h file."
 log "Re-run this installer to update integrations; use 'epitech-upgrade'"

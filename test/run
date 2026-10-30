@@ -3,7 +3,7 @@ set -euo pipefail
 
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." >/dev/null 2>&1 && pwd)"
 
-bash -n "${REPO_DIR}/install.sh" "${REPO_DIR}/epitech-upgrade" \
+bash -n "${REPO_DIR}/install.sh" "${REPO_DIR}/epitech-upgrade" "${REPO_DIR}"/bin/epitech-* \
     "${REPO_DIR}/lib/neovim.sh" "${REPO_DIR}/test/install-neovim" \
     "${REPO_DIR}/test/upgrade-neovim"
 
@@ -31,3 +31,4 @@ fi
 
 "${REPO_DIR}/test/install-neovim"
 bash "${REPO_DIR}/test/upgrade-neovim"
+"${REPO_DIR}/test/tools"

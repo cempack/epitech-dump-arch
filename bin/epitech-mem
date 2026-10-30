@@ -1,0 +1,140 @@
+#!/usr/bin/env bash
+# epitech-mem — run a program and report its memory errors, leaks and open
+# file descriptors in a few lines, pointing at your own code.
+#
+# Usage: epitech-mem [--asan] [--full] [--] PROGRAM [ARGS...]
+#   (default)  run under valgrind: invalid reads and writes, uninitialised
+#              values, bad frees, leaks, file descriptors left open
+#   --asan     rebuild with AddressSanitizer and UndefinedBehaviorSanitizer
+#              (make re CC="cc -fsanitize=…", your Makefile is not changed),
+#              run, then make fclean so no sanitized object is reused;
+#              faster than valgrind and catches stack and global overflows
+#   --full     print valgrind's whole report too
+#
+# The program keeps its terminal: interactive programs (a shell) work.
+# Exit status: 1 when memory problems were found, else the program's own.
+
+set -u
+
+ASAN=0
+FULL=0
+if [ -t 1 ]; then
+    GREEN=$'\e[32m' RED=$'\e[31m' YELLOW=$'\e[33m' BOLD=$'\e[1m' DIM=$'\e[2m' RESET=$'\e[0m'
+else
+    GREEN="" RED="" YELLOW="" BOLD="" DIM="" RESET=""
+fi
+usage() { sed -n '2,/^$/p' "$0" | sed 's/^# //; s/^#//'; }
+
+while [ $# -gt 0 ]; do
+    case "$1" in
+        --asan) ASAN=1 ;;
+        --full) FULL=1 ;;
+        -h|--help) usage; exit 0 ;;
+        --) shift; break ;;
+        -*) printf 'unknown option: %s\n' "$1"; usage; exit 2 ;;
+        *) break ;;
+    esac
+    shift
+done
+[ $# -ge 1 ] || { usage; exit 2; }
+PROGRAM="$1"
+shift
+
+if [ "$ASAN" -eq 1 ]; then
+    [ -f Makefile ] || { printf 'epitech-mem --asan rebuilds the project: run it next to the Makefile.\n'; exit 2; }
+    flags="-g3 -fsanitize=address,undefined -fno-omit-frame-pointer"
+    printf '%s▶ make re with %s%s\n' "$DIM" "$flags" "$RESET" >&2
+    if ! build=$(make re CC="cc $flags" 2>&1); then
+        printf '%s\n' "$build" | tail -5 >&2
+        printf '%s✗ the sanitized build failed: the Makefile must compile and link with $(CC)%s\n' "$RED" "$RESET" >&2
+        make fclean >/dev/null 2>&1
+        exit 2
+    fi
+    if [ -f "$PROGRAM" ] && ! nm "$PROGRAM" 2>/dev/null | grep -q '__asan_init'; then
+        printf '%s✗ %s was built without the sanitizers: its Makefile calls the compiler by name' "$RED" "$PROGRAM" >&2
+        printf ' instead of $(CC), so make re CC=… changes nothing%s
+' "$RESET" >&2
+        make fclean >/dev/null 2>&1
+        exit 2
+    fi
+    ASAN_OPTIONS="detect_leaks=1:print_summary=1:${ASAN_OPTIONS:-}" \
+        UBSAN_OPTIONS="print_stacktrace=1:${UBSAN_OPTIONS:-}" "$PROGRAM" "$@"
+    status=$?
+    make fclean >/dev/null 2>&1
+    printf '%s▶ sanitized build removed (make fclean): run make for a normal build%s\n' "$DIM" "$RESET" >&2
+    exit "$status"
+fi
+
+command -v valgrind >/dev/null 2>&1 || { printf 'valgrind is not installed.\n'; exit 2; }
+LOG=$(mktemp)
+trap 'rm -f "$LOG"' EXIT
+valgrind --leak-check=full --show-leak-kinds=all --track-origins=yes --track-fds=yes \
+    --log-file="$LOG" "$PROGRAM" "$@"
+status=$?
+
+[ "$FULL" -eq 1 ] && sed 's/^==[0-9]*== \{0,1\}//' "$LOG" >&2
+
+# Each problem with the first frame in your code: a .c file of the current
+# directory (valgrind names files without their directory), else the first
+# frame with a file at all (libc's own sources when debuginfod finds them).
+sources=$(find . -name '*.c' -not -path '*/.git/*' 2>/dev/null | sed 's|.*/||' | sort -u | tr '\n' ' ')
+report=$(sed 's/^==[0-9]*== \{0,1\}//' "$LOG" | awk -v sources=" $sources" -v logfile="$LOG" '
+    function flush() {
+        if (where == "") where = fallback
+        if (kind != "" && index(kind, logfile) == 0) {
+            key = kind " " where
+            if (!(key in seen)) { seen[key] = 1; printf "%s\t%s\n", kind, where }
+        }
+        kind = ""; where = ""; fallback = ""
+    }
+    /^(Invalid (read|write|free)|Conditional jump|Use of uninitialised|Syscall param|Mismatched free|Source and destination overlap|Argument .* of function)/ {
+        flush(); kind = $0; next
+    }
+    /bytes in [0-9,]+ blocks are (definitely|indirectly|possibly) lost/ {
+        flush(); kind = $0; sub(/ in loss record.*/, "", kind); next
+    }
+    /^Open file descriptor [0-9]+:/ {
+        flush(); kind = $0; next
+    }
+    /^ *(at|by) 0x/ && kind != "" && where == "" {
+        if (match($0, /\(([^():]+\.c):[0-9]+\)/)) {
+            frame = substr($0, RSTART + 1, RLENGTH - 2)
+            file = frame; sub(/:.*/, "", file)
+            name = $0; sub(/^ *(at|by) 0x[0-9A-F]+: /, "", name); sub(/ \(.*/, "", name)
+            if (frame ~ /^vg_/) next
+            if (index(sources, " " file " ")) where = frame " in " name
+            else if (fallback == "") fallback = frame " in " name
+        }
+        next
+    }
+    /^$/ { flush() }
+    END { flush() }
+')
+
+errors=$(grep -E 'ERROR SUMMARY: [0-9]+' "$LOG" | tail -1 | sed -E 's/.*ERROR SUMMARY: ([0-9]+).*/\1/')
+# Descriptors left open, other than 0 to 2 and valgrind's own log.
+open_fds=$(grep -E 'Open file descriptor ([3-9]|[1-9][0-9]+):' "$LOG" | grep -vcF "$LOG")
+reachable=$(grep -E 'still reachable:' "$LOG" | tail -1 | sed 's/^==[0-9]*== *//')
+
+printf '\n%sepitech-mem%s %s %s(exit %d)%s\n' "$BOLD" "$RESET" "$PROGRAM $*" "$DIM" "$status" "$RESET" >&2
+problems=0
+if [ -n "$report" ]; then
+    while IFS=$'\t' read -r kind where; do
+        case "$kind" in
+            Open\ file\ descriptor*) [ "$open_fds" -gt 0 ] || continue
+                printf '  %s!%s %s%s\n' "$YELLOW" "$RESET" "$kind" "${where:+  ← $where}" >&2 ;;
+            *"possibly lost"*) printf '  %s!%s %s%s\n' "$YELLOW" "$RESET" "$kind" "${where:+  ← $where}" >&2 ;;
+            *) printf '  %s✗%s %s%s\n' "$RED" "$RESET" "$kind" "${where:+  ← $where}" >&2
+               problems=$((problems + 1)) ;;
+        esac
+    done <<< "$report"
+fi
+[ -n "$reachable" ] && [ "${reachable#*: 0 bytes}" = "$reachable" ] \
+    && printf '  %s-%s %s (memory not freed at exit but still pointed to)\n' "$DIM" "$RESET" "$reachable" >&2
+if [ "$problems" -eq 0 ] && [ "${errors:-0}" -eq 0 ]; then
+    printf '  %s✓%s no memory errors, no leaks\n' "$GREEN" "$RESET" >&2
+    exit "$status"
+fi
+printf '  %s%d problem(s)%s, %s error(s) in valgrind'"'"'s summary (--full for the whole report)\n' \
+    "$RED" "$problems" "$RESET" "${errors:-0}" >&2
+exit 1
