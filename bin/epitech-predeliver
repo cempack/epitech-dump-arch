@@ -283,8 +283,12 @@ fi
 if [ -n "$ALLOWED_ARG" ]; then
     mkdir -p "$ALLOWED_DIR"
     # "malloc, free, write(2)" → one name per line.
-    printf '%s\n' "$ALLOWED_ARG" | tr ',;' '  ' | tr -s ' \t' '\n' | sed 's/([0-9a-z]*)$//' \
-        | sed '/^$/d' | sort -u > "$ALLOWED_FILE"
+    names=$(printf '%s\n' "$ALLOWED_ARG" | tr ',;' '  ' | tr -s ' \t' '\n' | sed 's/([0-9a-z]*)$//' | sed '/^$/d')
+    # Only function names (and * patterns): a placeholder such as "…" would
+    # make every real function look unauthorized.
+    invalid=$(printf '%s\n' "$names" | grep -vE '^[A-Za-z_*][A-Za-z0-9_*]*$' | tr '\n' ' ')
+    printf '%s\n' "$names" | grep -E '^[A-Za-z_*][A-Za-z0-9_*]*$' | sort -u > "$ALLOWED_FILE"
+    [ -n "$invalid" ] && warn "not function names, left out: ${invalid% }"
     note "remembered for this project (--forget-allowed to drop it)"
 fi
 
@@ -296,10 +300,14 @@ external_symbols() {
         defined=$(nm "$target" 2>/dev/null | awk '$2 ~ /^[TDBRWV]$/ {print $3}' | sort -u)
         undefined=$(nm -u "$target" 2>/dev/null | awk '/ U / {print $2}' | sort -u)
         comm -23 <(printf '%s\n' "$undefined") <(printf '%s\n' "$defined")
+    elif command -v readelf >/dev/null 2>&1; then
+        # Only functions: variables such as stderr or environ live in the
+        # binary itself and aren't on an authorized-functions list.
+        readelf -W --dyn-syms "$target" 2>/dev/null | awk '$7 == "UND" && $4 == "FUNC" {print $8}' | sort -u
     else
         nm -u "$target" 2>/dev/null | awk '{print $NF}' | sort -u
-    fi | sed 's/@.*//' | sed -E 's/^__(.*)_chk$/\1/; s/^__isoc(99|23)_//; s/^__errno_location$/errno/; s/^__assert_fail$/assert/' \
-        | grep -vE '^(__libc_start_main|__gmon_start__|_ITM_.*|__cxa_finalize|__cxa_atexit|__stack_chk_(fail|guard)|_Jv_RegisterClasses|__gcov_.*|__asan_.*|__ubsan_.*|__lsan_.*|__sanitizer_.*|__ctype_(b|tolower|toupper)_loc|_GLOBAL_OFFSET_TABLE_|__dso_handle|__libc_csu_.*|_init|_fini|_start|__data_start|__bss_start|_edata|_end|_IO_stdin_used|__TMC_END__|__progname.*)$' \
+    fi | sed 's/@.*//' | sed -E 's/^__(.*)_chk$/\1/; s/^__isoc(99|23)_//; s/^__assert_fail$/assert/' \
+        | grep -vE '^(__libc_start_main|__gmon_start__|_ITM_.*|__cxa_finalize|__cxa_atexit|__stack_chk_(fail|guard)|_Jv_RegisterClasses|__gcov_.*|__asan_.*|__ubsan_.*|__lsan_.*|__sanitizer_.*|__ctype_(b|tolower|toupper)_loc|_GLOBAL_OFFSET_TABLE_|__dso_handle|__libc_csu_.*|_init|_fini|_start|__data_start|__bss_start|_edata|_end|_IO_stdin_used|__TMC_END__|__progname.*|__errno_location|stdin|stdout|stderr|environ|optarg|optind|opterr|optopt|errno)$' \
         | sed '/^$/d' | sort -u
 }
 
@@ -340,6 +348,7 @@ else
         pass "only authorized functions ($(tr '\n' ' ' < "$ALLOWED_FILE" | sed 's/ $//'))"
     else
         block "unauthorized functions: ${forbidden% }"
+        note "authorized list: $(tr '\n' ' ' < "$ALLOWED_FILE" | sed 's/ $//')"
         for symbol in $forbidden; do
             users=$(for object in $(find . -name '*.o' -not -path './.git/*'); do
                 nm -u "$object" 2>/dev/null | sed 's/@.*//' | awk '{print $NF}' \

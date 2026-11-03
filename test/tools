@@ -102,6 +102,31 @@ expect "remembered" "$out" "unauthorized functions: printf"
 out=$("${BIN}/epitech-predeliver" --forget-allowed --no-tests "$PROJECT" 2>&1)
 expect "forgotten" "$out" "no list of authorized functions for this project; it calls: .*printf"
 
+# errno and stderr are variables, not functions: never reported, even
+# though errno is reached through a hidden function (__errno_location).
+cat > "${PROJECT}/src/print.c" <<'CEOF'
+#include <errno.h>
+#include <stdio.h>
+#include <string.h>
+
+void print_hello(char const *name)
+{
+    fprintf(stderr, "%s: %s\n", name, strerror(errno));
+}
+CEOF
+git -C "$PROJECT" commit -qam "errno"
+out=$("${BIN}/epitech-predeliver" --allowed "malloc, free, write, fprintf, strerror" --no-tests "$PROJECT" 2>&1)
+expect "errno" "$out" "only authorized functions \(fprintf free malloc strerror write\)"
+reject "errno: not a function" "$out" "unauthorized"
+
+# A placeholder pasted instead of the subject's list is refused, and the
+# remembered list is shown when something is blocked.
+out=$("${BIN}/epitech-predeliver" --allowed "…" --no-tests "$PROJECT" 2>&1)
+expect "placeholder" "$out" "not function names, left out: …"
+expect "list shown" "$out" "authorized list: *$"
+out=$("${BIN}/epitech-predeliver" --allowed "malloc free write" --no-tests "$PROJECT" 2>&1)
+expect "list shown with names" "$out" "authorized list: free malloc write"
+
 # Delivery problems: a tracked .o, a source never added, a relinking Makefile,
 # an uncommitted change.
 (cd "$PROJECT" && cc -c src/print.c -o src/print.o && git add -f src/print.o \
