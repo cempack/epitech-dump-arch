@@ -199,15 +199,46 @@ int main(void)
 }
 EOF
 if command -v valgrind >/dev/null 2>&1; then
-    (cd "$MEM" && cc -g -o leak leak.c && cc -g -o clean clean.c)
+    cat > "${MEM}/crash.c" <<'CEOF'
+#include <stddef.h>
+
+static int get_first(int *tab)
+{
+    return tab[0];
+}
+
+int main(void)
+{
+    return get_first(NULL);
+}
+CEOF
+    (cd "$MEM" && cc -g -o leak leak.c && cc -g -o clean clean.c && cc -g -o crash crash.c)
     out=$(cd "$MEM" && "${BIN}/epitech-mem" ./leak 2>&1)
     status=$?
-    expect "leak" "$out" "5 bytes in 1 blocks are definitely lost  ← leak.c:6 in main"
+    expect "leak section" "$out" "^ LEAKS$"
+    expect "leak" "$out" "✗ 5 bytes in 1 block definitely lost"
+    expect "leak site" "$out" "allocated at leak.c:6 in main"
+    expect "leak source line" "$out" "6 │ char \\*copy = strdup\\(\"leak\"\\);"
     [ "$status" -eq 1 ] || fail "leak: exit $status"
+    # A crash: the line, a NULL pointer named as such, once (not again as a
+    # memory error), and no "Segmentation fault" line from the shell.
+    out=$(cd "$MEM" && "${BIN}/epitech-mem" crash 2>&1)
+    status=$?
+    expect "crash: bare name is ./crash" "$out" "epitech-mem ./crash .*killed by signal 11"
+    expect "crash" "$out" "✗ segmentation fault \\(SIGSEGV\\)  \\(address 0x0: a NULL pointer\\)"
+    expect "crash line" "$out" "5 │ return tab\\[0\\];"
+    reject "crash: not twice" "$out" "MEMORY ERRORS"
+    reject "crash: no shell message" "$out" "Segmentation fault"
+    [ "$status" -eq 1 ] || fail "crash: exit $status"
+    out=$(cd "$MEM" && "${BIN}/epitech-mem" not_built 2>&1)
+    status=$?
+    expect "missing program" "$out" "✗ valgrind could not run not_built"
+    reject "missing program: no all clear" "$out" "no memory errors"
+    [ "$status" -eq 2 ] || fail "missing program: exit $status"
     out=$(cd "$MEM" && "${BIN}/epitech-mem" ./clean 2>&1)
     status=$?
     expect "clean" "$out" "✓ no memory errors, no leaks"
-    reject "clean: valgrind's log isn't an open descriptor" "$out" "Open file descriptor"
+    reject "clean: no descriptor it didn't open" "$out" "FILES LEFT OPEN"
     [ "$status" -eq 3 ] || fail "clean: the program's exit status should pass through, got $status"
 else
     printf '%s\n' "Skipping the valgrind tests: valgrind is missing"

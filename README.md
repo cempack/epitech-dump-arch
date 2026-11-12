@@ -82,20 +82,47 @@ git hook. `--no-tests` skips the tests, `--keep` keeps the clone to look at.
 
 ## Leaks and crashes: `epitech-mem`
 
+Valgrind's report, made readable: each problem in plain words, the line of
+**your** code that caused it (not libc's), the line itself, and the second
+place that explains it, where the overflowed block was allocated or where it
+was first freed.
+
 ```
-$ epitech-mem ./my_ls -l src
+$ epitech-mem my_ls -l src
 ...the program's own output...
 
 epitech-mem ./my_ls -l src  (exit 0)
-  ✗ Invalid read of size 1  ← display.c:42 in print_name
-  ✗ 64 bytes in 2 blocks are definitely lost  ← parse.c:18 in add_entry
-  ! Open file descriptor 3: src  ← list.c:12 in read_dir
-  2 problem(s), 3 error(s) in valgrind's summary (--full for the whole report)
+
+ MEMORY ERRORS
+  ✗ reads 1 byte outside valid memory  (0 bytes after a block of size 8 alloc'd)
+      at display.c:42 in print_name
+           42 │ while (name[i] != '\0') {
+      block allocated at parse.c:18 in add_entry
+           18 │ entry->name = malloc(sizeof(char) * len);
+  ✗ a condition reads an uninitialised value
+      at sort.c:12 in sort_entries
+           12 │ if (swapped) {
+      the value is a local variable of sort_entries (sort.c:7), never set
+
+ LEAKS
+  ✗ 64 bytes in 2 blocks definitely lost
+      allocated at parse.c:18 in add_entry
+           18 │ entry->name = malloc(sizeof(char) * len);
+
+ FILES LEFT OPEN
+  ! file descriptor 3 (src) never closed
+      opened at list.c:12 in read_dir
+           12 │ dir = opendir(path);
+
+ SUMMARY
+  heap: 41 allocs, 39 frees, 4,312 bytes allocated
+  ✗ 3 problem(s) (--full for valgrind's whole report)
 ```
 
-Each problem points at the line of **your** code that caused it, not at
-libc. The program keeps the terminal, so interactive ones (a shell) work.
-`--full` adds valgrind's whole report.
+A crash gets its own section with the line that crashed (`segmentation
+fault (SIGSEGV) (address 0x0: a NULL pointer)`). In a terminal it's in
+color. `epitech-mem my_ls` runs `./my_ls`; the program keeps the terminal,
+so interactive ones (a shell) work. `--full` adds valgrind's whole report.
 
 `epitech-mem --asan ./my_ls -l src` rebuilds with AddressSanitizer and
 UndefinedBehaviorSanitizer (through `make re CC=…`, your Makefile isn't

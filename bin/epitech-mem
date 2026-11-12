@@ -19,9 +19,9 @@ set -u
 ASAN=0
 FULL=0
 if [ -t 1 ]; then
-    GREEN=$'\e[32m' RED=$'\e[31m' YELLOW=$'\e[33m' BOLD=$'\e[1m' DIM=$'\e[2m' RESET=$'\e[0m'
+    GREEN=$'\e[32m' RED=$'\e[31m' YELLOW=$'\e[33m' CYAN=$'\e[36m' BOLD=$'\e[1m' DIM=$'\e[2m' RESET=$'\e[0m'
 else
-    GREEN="" RED="" YELLOW="" BOLD="" DIM="" RESET=""
+    GREEN="" RED="" YELLOW="" CYAN="" BOLD="" DIM="" RESET=""
 fi
 usage() { sed -n '2,/^$/p' "$0" | sed 's/^# //; s/^#//'; }
 
@@ -39,6 +39,10 @@ done
 [ $# -ge 1 ] || { usage; exit 2; }
 PROGRAM="$1"
 shift
+# `epitech-mem my_ls` means ./my_ls, not a my_ls (or valgrind) on PATH.
+if [[ "$PROGRAM" != */* ]] && [ -f "$PROGRAM" ]; then
+    PROGRAM="./$PROGRAM"
+fi
 
 if [ "$ASAN" -eq 1 ]; then
     [ -f Makefile ] || { printf 'epitech-mem --asan rebuilds the project: run it next to the Makefile.\n'; exit 2; }
@@ -68,73 +72,181 @@ fi
 command -v valgrind >/dev/null 2>&1 || { printf 'valgrind is not installed.\n'; exit 2; }
 LOG=$(mktemp)
 trap 'rm -f "$LOG"' EXIT
-valgrind --leak-check=full --show-leak-kinds=all --track-origins=yes --track-fds=yes \
-    --log-file="$LOG" "$PROGRAM" "$@"
+# The program keeps its stderr (fd 3); bash's own "Segmentation fault …"
+# line about the killed valgrind goes to /dev/null: the report says it.
+{ valgrind --leak-check=full --show-leak-kinds=all --track-origins=yes --track-fds=yes \
+    --log-file="$LOG" "$PROGRAM" "$@" 2>&3; } 3>&2 2>/dev/null
 status=$?
 
 [ "$FULL" -eq 1 ] && sed 's/^==[0-9]*== \{0,1\}//' "$LOG" >&2
+if ! grep -q 'ERROR SUMMARY' "$LOG"; then
+    printf '\n%s✗ valgrind could not run %s%s' "$RED" "$PROGRAM" "$RESET" >&2
+    if [[ "$PROGRAM" != */* ]]; then
+        printf ' %s(no ./%s here: build it first, or give its path)%s' "$DIM" "$PROGRAM" "$RESET" >&2
+    fi
+    printf '\n' >&2
+    exit 2
+fi
 
-# Each problem with the first frame in your code: a .c file of the current
-# directory (valgrind names files without their directory), else the first
-# frame with a file at all (libc's own sources when debuginfod finds them).
-sources=$(find . -name '*.c' -not -path '*/.git/*' 2>/dev/null | sed 's|.*/||' | sort -u | tr '\n' ' ')
-report=$(sed 's/^==[0-9]*== \{0,1\}//' "$LOG" | awk -v sources=" $sources" -v logfile="$LOG" '
-    function flush() {
-        if (where == "") where = fallback
-        if (kind != "" && index(kind, logfile) == 0) {
-            key = kind " " where
-            if (!(key in seen)) { seen[key] = 1; printf "%s\t%s\n", kind, where }
+# The report: valgrind's blocks turned into one record per problem,
+#   section, mark, title, where, note, origin label, origin
+# separated by \037 (a tab would collapse empty fields when read back)
+# with "where" and "origin" the first frame in your code: a .c file under the
+# current directory (valgrind names files without their directory), else the
+# first frame with a file at all.
+declare -A PATHS=()
+while IFS= read -r path; do
+    PATHS[${path##*/}]=${PATHS[${path##*/}]:-$path}
+done < <(find . -name '*.c' -not -path '*/.git/*' 2>/dev/null | sed 's|^\./||')
+sources=" ${!PATHS[*]} "
+report=$(sed 's/^==[0-9]*== \{0,1\}//' "$LOG" | awk -v sources="$sources" -v logfile="$LOG" '
+    function frame_of(line,    frame, file, name) {
+        if (!match(line, /\(([^():]+\.c):[0-9]+\)/)) return ""
+        frame = substr(line, RSTART + 1, RLENGTH - 2)
+        file = frame; sub(/:.*/, "", file)
+        if (file ~ /^vg_/) return ""
+        name = line; sub(/^ *(at|by) 0x[0-9A-Fa-f]+: /, "", name); sub(/ \(.*/, "", name)
+        return (index(sources, " " file " ") ? "+" : "-") frame " in " name
+    }
+    function pick(current, frame) {
+        if (frame == "") return current
+        if (current == "" || (substr(current, 1, 1) == "-" && substr(frame, 1, 1) == "+")) return frame
+        return current
+    }
+    function flush(    key) {
+        if (title != "" && !skip) {
+            key = section title where
+            if (!(key in seen)) {
+                seen[key] = 1
+                printf "%s\037%s\037%s\037%s\037%s\037%s\037%s\n", section, mark, title, substr(where, 2), note, label, substr(origin, 2)
+            }
         }
-        kind = ""; where = ""; fallback = ""
+        title = ""; where = ""; note = ""; label = ""; origin = ""; skip = 0; in_origin = 0
     }
-    /^(Invalid (read|write|free)|Conditional jump|Use of uninitialised|Syscall param|Mismatched free|Source and destination overlap|Argument .* of function)/ {
-        flush(); kind = $0; next
-    }
-    /bytes in [0-9,]+ blocks are (definitely|indirectly|possibly) lost/ {
-        flush(); kind = $0; sub(/ in loss record.*/, "", kind); next
-    }
-    /^Open file descriptor [0-9]+:/ {
-        flush(); kind = $0; next
-    }
-    /^ *(at|by) 0x/ && kind != "" && where == "" {
-        if (match($0, /\(([^():]+\.c):[0-9]+\)/)) {
-            frame = substr($0, RSTART + 1, RLENGTH - 2)
-            file = frame; sub(/:.*/, "", file)
-            name = $0; sub(/^ *(at|by) 0x[0-9A-F]+: /, "", name); sub(/ \(.*/, "", name)
-            if (frame ~ /^vg_/) next
-            if (index(sources, " " file " ")) where = frame " in " name
-            else if (fallback == "") fallback = frame " in " name
-        }
+    function error(text) { flush(); section = "error"; mark = "x"; title = text }
+    /^Invalid read of size [0-9]+/ { n = $NF; error("reads " n " byte" (n > 1 ? "s" : "") " outside valid memory"); next }
+    /^Invalid write of size [0-9]+/ { n = $NF; error("writes " n " byte" (n > 1 ? "s" : "") " outside valid memory"); next }
+    /^Invalid free\(\)/ { error("frees memory that is not allocated (freed twice?)"); next }
+    /^Mismatched free\(\)/ { error("frees memory with the wrong function"); next }
+    /^Conditional jump or move depends on uninitialised/ { error("a condition reads an uninitialised value"); next }
+    /^Use of uninitialised value/ { error("uses an uninitialised value"); next }
+    /^Syscall param / { p = $3; error("passes uninitialised bytes to " p); next }
+    /^Source and destination overlap/ { error($0); next }
+    /^Argument .* of function .* has a fishy/ { error($0); next }
+    /^Process terminating with default action of signal/ {
+        flush(); section = "crash"; mark = "x"
+        title = $0; sub(/.*signal [0-9]+ \(/, "", title); sub(/\).*/, "", title)
+        title = (title == "SIGSEGV" ? "segmentation fault" : title == "SIGABRT" ? "abort" : title == "SIGFPE" ? "arithmetic error (division by zero?)" : "killed by " title) " (" title ")"
         next
     }
-    /^$/ { flush() }
+    /bytes in [0-9,]+ blocks are (definitely|indirectly|possibly) lost/ {
+        flush(); section = "leak"; mark = ($0 ~ /possibly/ ? "!" : "x")
+        title = $0; sub(/ in loss record.*/, "", title); sub(/ are /, " ", title); sub(/ 1 blocks/, " 1 block", title)
+        label = "allocated at"; in_origin = 1
+        next
+    }
+    /^Open file descriptor [0-9]+:/ {
+        flush(); section = "fd"; mark = "!"
+        fd = $4; sub(/:$/, "", fd); target = $0; sub(/^Open file descriptor [0-9]+: */, "", target)
+        skip = (fd + 0 < 3 || index($0, logfile) > 0)
+        title = "file descriptor " fd (target != "" ? " (" target ")" : "") " never closed"
+        label = "opened at"; in_origin = 1
+        next
+    }
+    /^ +<inherited from parent>/ && section == "fd" { skip = 1; next }
+    /^ +(at|by) 0x/ && title != "" {
+        if (in_origin) origin = pick(origin, frame_of($0))
+        else where = pick(where, frame_of($0))
+        next
+    }
+    /^ [A-Z]/ && title != "" && note == "" {
+        text = substr($0, 2)
+        if (text ~ /^Address 0x0 /) note = "address 0x0: a NULL pointer"
+        else if (text ~ /^Access not within mapped region at address 0x0/) note = "address 0x0: a NULL pointer"
+        else if (text ~ /^Address /) { note = text; sub(/^Address 0x[0-9a-f]+ is /, "", note) }
+        else if (text ~ /^Uninitialised value was created by a stack allocation/) label = "a local variable of"
+        else if (text ~ /^Uninitialised value was created by a heap allocation/) { label = "allocated (and never set) at" }
+        else if (text ~ /^Access not within mapped region/) note = text
+        if (text ~ /alloc.d$/ && label == "") label = "block allocated at"
+        if (text ~ /free.d$/) label = "first freed at"
+        if (label != "") in_origin = 1
+        next
+    }
+    /^ Block was alloc.d at/ { next }
+    /^$/ || /^(HEAP|LEAK|FILE DESCRIPTORS|ERROR) SUMMARY/ || /^FILE DESCRIPTORS/ { flush() }
     END { flush() }
 ')
 
-errors=$(grep -E 'ERROR SUMMARY: [0-9]+' "$LOG" | tail -1 | sed -E 's/.*ERROR SUMMARY: ([0-9]+).*/\1/')
-# Descriptors left open, other than 0 to 2 and valgrind's own log.
-open_fds=$(grep -E 'Open file descriptor ([3-9]|[1-9][0-9]+):' "$LOG" | grep -vcF "$LOG")
-reachable=$(grep -E 'still reachable:' "$LOG" | tail -1 | sed 's/^==[0-9]*== *//')
+heap=$(grep -E 'total heap usage:' "$LOG" | tail -1 | sed 's/^==[0-9]*== *total heap usage: *//')
+reachable=$(grep -E 'still reachable:' "$LOG" | tail -1 | sed 's/^==[0-9]*== *still reachable: *//')
 
-printf '\n%sepitech-mem%s %s %s(exit %d)%s\n' "$BOLD" "$RESET" "$PROGRAM $*" "$DIM" "$status" "$RESET" >&2
-problems=0
-if [ -n "$report" ]; then
-    while IFS=$'\t' read -r kind where; do
-        case "$kind" in
-            Open\ file\ descriptor*) [ "$open_fds" -gt 0 ] || continue
-                printf '  %s!%s %s%s\n' "$YELLOW" "$RESET" "$kind" "${where:+  ← $where}" >&2 ;;
-            *"possibly lost"*) printf '  %s!%s %s%s\n' "$YELLOW" "$RESET" "$kind" "${where:+  ← $where}" >&2 ;;
-            *) printf '  %s✗%s %s%s\n' "$RED" "$RESET" "$kind" "${where:+  ← $where}" >&2
-               problems=$((problems + 1)) ;;
-        esac
-    done <<< "$report"
+# The line of code at file:line, from the project, trimmed.
+source_line() {
+    local file="${1%%:*}" line="${1##*:}" path text
+    path=${PATHS[$file]:-}
+    [ -n "$path" ] && [ -f "$path" ] || return
+    text=$(sed -n "${line}p" "$path" | sed 's/^[[:space:]]*//')
+    [ -n "$text" ] && printf '        %s%5d │%s %s\n' "$DIM" "$line" "$RESET" "${text:0:70}" >&2
+}
+# "file.c:12 in name" → coloured, then the line of code. For a local
+# variable, valgrind only knows the function (its line is the function's
+# opening brace), so the function is named instead.
+location() {
+    local label="$1" where="$2"
+    [ -n "$where" ] || return
+    if [ "$label" = "a local variable of" ]; then
+        printf '      %sthe value is a local variable of%s %s%s%s %s(%s), never set%s\n' "$DIM" "$RESET" "$CYAN" \
+            "${where##* in }" "$RESET" "$DIM" "${where%% in *}" "$RESET" >&2
+        return
+    fi
+    printf '      %s%s%s %s%s%s\n' "$DIM" "$label" "$RESET" "$CYAN" "$where" "$RESET" >&2
+    source_line "${where%% in *}"
+}
+
+printf '\n%sepitech-mem%s %s %s' "$BOLD" "$RESET" "$PROGRAM $*" "$DIM" >&2
+if [ "$status" -gt 128 ]; then
+    printf '(killed by signal %d)%s\n' "$((status - 128))" "$RESET" >&2
+else
+    printf '(exit %d)%s\n' "$status" "$RESET" >&2
 fi
-[ -n "$reachable" ] && [ "${reachable#*: 0 bytes}" = "$reachable" ] \
-    && printf '  %s-%s %s (memory not freed at exit but still pointed to)\n' "$DIM" "$RESET" "$reachable" >&2
-if [ "$problems" -eq 0 ] && [ "${errors:-0}" -eq 0 ]; then
-    printf '  %s✓%s no memory errors, no leaks\n' "$GREEN" "$RESET" >&2
+problems=0
+crashed=$(printf '%s\n' "$report" | awk -F'\037' '$1 == "crash" { printf "%s| ", $4 }')
+for section in crash error leak fd; do
+    entries=$(printf '%s\n' "$report" | awk -F'\037' -v s="$section" -v crashed=" $crashed" '
+        # The access that crashed the program is already shown as the crash.
+        $1 == s && !(s == "error" && $4 != "" && index(crashed, " " $4 "| "))')
+    [ -n "$entries" ] || continue
+    case "$section" in
+        crash) printf '\n %sCRASH%s\n' "$BOLD$RED" "$RESET" >&2 ;;
+        error) printf '\n %sMEMORY ERRORS%s\n' "$BOLD" "$RESET" >&2 ;;
+        leak) printf '\n %sLEAKS%s\n' "$BOLD" "$RESET" >&2 ;;
+        fd) printf '\n %sFILES LEFT OPEN%s\n' "$BOLD" "$RESET" >&2 ;;
+    esac
+    while IFS=$'\037' read -r _ mark title where note label origin; do
+        if [ "$mark" = "x" ]; then
+            printf '  %s✗%s %s' "$RED" "$RESET" "$title" >&2
+            problems=$((problems + 1))
+        else
+            printf '  %s!%s %s' "$YELLOW" "$RESET" "$title" >&2
+        fi
+        [ -n "$note" ] && printf '  %s(%s)%s' "$DIM" "$note" "$RESET" >&2
+        printf '\n' >&2
+        if [ "$section" = "leak" ] || [ "$section" = "fd" ]; then
+            location "$label" "$origin"
+        else
+            location "at" "$where"
+            location "${label:-see}" "$origin"
+        fi
+    done <<< "$entries"
+done
+
+printf '\n %sSUMMARY%s\n' "$BOLD" "$RESET" >&2
+[ -n "$heap" ] && printf '  heap: %s\n' "$heap" >&2
+[ -n "$reachable" ] && [ "${reachable#0 bytes}" = "$reachable" ] \
+    && printf '  %sstill reachable at exit: %s (not freed, but still pointed to)%s\n' "$DIM" "$reachable" "$RESET" >&2
+if [ "$problems" -eq 0 ]; then
+    printf '  %s✓ no memory errors, no leaks%s\n' "$GREEN" "$RESET" >&2
     exit "$status"
 fi
-printf '  %s%d problem(s)%s, %s error(s) in valgrind'"'"'s summary (--full for the whole report)\n' \
-    "$RED" "$problems" "$RESET" "${errors:-0}" >&2
+printf '  %s✗ %d problem(s)%s %s(--full for valgrind'"'"'s whole report)%s\n' "$RED" "$problems" "$RESET" "$DIM" "$RESET" >&2
 exit 1
