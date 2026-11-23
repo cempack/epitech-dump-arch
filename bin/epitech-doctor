@@ -192,6 +192,14 @@ else
     meh "epitech.nvim isn't installed yet" "start nvim once: lazy.nvim installs it"
 fi
 want mbake "$REINSTALL (Makefile formatter)"
+for cli in code codium code-oss code-insiders; do
+    command -v "$cli" >/dev/null 2>&1 || continue
+    if "$cli" --list-extensions 2>/dev/null | grep -qix 'cempack.epitech'; then
+        good "Epitech extension installed in ${cli}"
+    else
+        meh "${cli} has no Epitech extension" "epitech-upgrade --force"
+    fi
+done
 
 section "Git and GitHub"
 need git "sudo pacman -S git"

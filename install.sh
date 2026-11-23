@@ -113,6 +113,8 @@ fi
 
 # shellcheck source=lib/neovim.sh
 . "${REPO_DIR}/lib/neovim.sh" || die "could not load the Neovim installer"
+# shellcheck source=lib/vscode.sh
+. "${REPO_DIR}/lib/vscode.sh" || die "could not load the VS Code installer"
 
 log "Epitech tooling:"
 mkdir -p "${HOME}/.local/bin"
@@ -133,6 +135,9 @@ chmod +x "${HOME}/.local/bin/epitech-emacs"
 ok "epitech-emacs launcher installed"
 
 install_lazyvim
+
+log "VS Code:"
+install_vscode_extension 0 0 || warn "the Epitech extension for VS Code isn't installed: epitech-upgrade retries"
 
 if [ -x /opt/teams-for-linux/teams-for-linux ]; then
     ln -sf /opt/teams-for-linux/teams-for-linux "${HOME}/.local/bin/teams-for-linux"
@@ -164,5 +169,7 @@ log "  epitech-doctor (is everything working?), epitech-predeliver (is this"
 log "  project ready to push?), epitech-mem (leaks and memory errors)."
 log "LazyVim: <leader>cf formats C; <leader>cH inserts an Epitech header."
 log "         <leader>cG adds a filename-based include guard to a .h file."
+log "VS Code: the Epitech extension formats on save (Shift+Alt+F), shows"
+log "         Banana's reports and the meters; Ctrl+Shift+P > Epitech for the rest."
 log "Re-run this installer to update integrations; use 'epitech-upgrade'"
 log "for the upstream Epitech tools."

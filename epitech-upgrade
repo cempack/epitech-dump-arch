@@ -12,6 +12,8 @@
 #   epitech.nvim       plugin tracks GitHub HEAD (cempack/epitech.nvim) through
 #                      lazy.nvim; the LazyVim spec tracks this project's HEAD.
 #                      LazyVim and other plugins are never updated here.
+#   VS Code extension  epitech.vsix from cempack/epitech.nvim's latest release,
+#                      in each of code, codium and code-oss that's installed.
 # Checked only (owned by pacman/yay, never touched):
 #   criterion, teams-for-linux.
 #
@@ -268,6 +270,17 @@ do_nvim_cfg() {
         || fail "Neovim Epitech integration (update failed)"
 }
 
+# The Epitech extension in every VS Code found (lib/vscode.sh).
+do_vscode() {
+    local dir
+    log "VS Code Epitech extension:"
+    dir=$(dump_checkout "$1") || { fail "VS Code extension (repository download failed)"; return; }
+    [ -f "${dir}/lib/vscode.sh" ] || { fail "VS Code extension (lib/vscode.sh missing)"; return; }
+    # shellcheck source=lib/vscode.sh
+    . "${dir}/lib/vscode.sh" || { fail "VS Code extension (lib/vscode.sh failed to load)"; return; }
+    install_vscode_extension "$CHECK_ONLY" "$FORCE" || fail "VS Code extension"
+}
+
 do_criterion_check() {
     local installed latest
     log "criterion (pacman-owned, check only):"
@@ -317,6 +330,7 @@ main() {
     do_vim_cfg "$UPGRADE_TMP_DIR"
     do_nvim_cfg "$UPGRADE_TMP_DIR"
     do_tools "$UPGRADE_TMP_DIR"
+    do_vscode "$UPGRADE_TMP_DIR"
     do_criterion_check
     do_teams_check
 

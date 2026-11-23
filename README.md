@@ -17,7 +17,7 @@ Then run `epitech-doctor` to see that everything works.
 | | |
 |---|---|
 | **School tools** | `epiclang` with Banana and `banana-check-repo` (the same packages as the Epitech PPA), Criterion, CSFML, `tcsh`, Teams |
-| **Editors** | Neovim with LazyVim and [epitech.nvim](https://github.com/cempack/epitech.nvim), the Epitech Vim config, the Epitech Emacs config (`epitech-emacs`) |
+| **Editors** | Neovim with LazyVim and [epitech.nvim](https://github.com/cempack/epitech.nvim), the Epitech extension for VS Code (when VS Code, VSCodium or Code - OSS is installed), the Epitech Vim config, the Epitech Emacs config (`epitech-emacs`) |
 | **Development** | gcc, clang 21, gdb, valgrind, gcovr, make, lazygit, gh, ripgrep, fd, `mbake` |
 | **Its own commands** | `epitech-predeliver`, `epitech-mem`, `epitech-doctor`, `epitech-upgrade` |
 
@@ -173,6 +173,21 @@ The installer is careful with your config:
   `lua/plugins/epitech-dump-arch.lua`;
 - any other Neovim config: left alone, the Neovim part is skipped.
 
+## VS Code
+
+When `code`, `codium` or `code-oss` is installed, the installer adds the
+[Epitech extension](https://github.com/cempack/epitech.nvim/tree/main/vscode)
+to each of them, and the weekly update keeps it current. It's the Neovim
+plugin's work brought to VS Code, without Neovim: the same Banana-proof
+formatter (`Shift+Alt+F`, or format on save), Banana's reports in the
+Problems panel with the rule on hover, `13/20 lines · 2/4 args` after each
+function, the nesting depth, the file's function count in the status bar,
+the `(void)` fix, headers and guards, and **Epitech: New Project** with the
+same Makefile and files. `Ctrl+Shift+P`, then type `Epitech`, lists every
+command.
+
+Install VS Code after the dump? Run `epitech-upgrade` once.
+
 ## Install options
 
 ```sh
@@ -189,7 +204,8 @@ Re-running is safe. With `--no-sys`, the editors and tools (including
 
 A weekly timer runs `epitech-upgrade`: epiclang and Banana from the Epitech
 PPA, the Emacs and Vim configs, epitech.nvim (`:Lazy update epitech.nvim`
-only, never your other plugins), and this project's commands.
+only, never your other plugins), the VS Code extension, and this project's
+commands.
 
 ```sh
 epitech-upgrade            # now
@@ -219,6 +235,7 @@ rm ~/.config/systemd/user/epitech-upgrade.{service,timer}
 rm ~/.local/bin/{epitech-upgrade,epitech-doctor,epitech-predeliver,epitech-mem,epitech-emacs}
 rm ~/.local/bin/{epiclang,epiclang.py,banana-check-repo,teams-for-linux}
 rm ~/.config/nvim/lua/plugins/epitech-dump-arch.lua
+code --uninstall-extension cempack.epitech   # or codium / code-oss
 rm -rf ~/.local/share/nvim/lazy/epitech.nvim ~/.local/share/nvim/epitech.nvim
 rm -rf ~/.local/lib/epiclang ~/.local/share/epitech-upgrade ~/.local/share/epitech-dump-arch
 ```

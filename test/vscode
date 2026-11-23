@@ -1,0 +1,97 @@
+#!/usr/bin/env bash
+# Tests for lib/vscode.sh: the Epitech extension goes into each VS Code
+# found, from the latest release, and is updated only when that release is
+# newer. Fake `code` and `codium` record what they're asked; the release is
+# a file:// URL.
+set -uo pipefail
+
+REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." >/dev/null 2>&1 && pwd)"
+TEST_ROOT=$(mktemp -d)
+trap 'rm -rf "$TEST_ROOT"' EXIT
+
+fail() { printf 'FAILED: %s\n' "$*"; exit 1; }
+expect() { # expect LABEL TEXT PATTERN
+    printf '%s\n' "$2" | grep -qE -- "$3" || { printf '%s\n' "$2"; fail "$1: no match for /$3/"; }
+}
+
+log() { printf '%s\n' "$*"; }
+ok() { printf '  [ok] %s\n' "$*"; }
+info() { printf '  [..] %s\n' "$*"; }
+warn() { printf '  [!!] %s\n' "$*"; }
+# shellcheck source=lib/vscode.sh
+. "${REPO_DIR}/lib/vscode.sh"
+
+BIN="${TEST_ROOT}/bin"
+mkdir -p "$BIN"
+# A VS Code CLI whose installed extensions live in a file: --install-extension
+# records the .vsix's version (its file holds "version=…").
+fake_cli() {
+    cat > "${BIN}/$1" <<EOF2
+#!/bin/sh
+state="${TEST_ROOT}/\$(basename "\$0").installed"
+case "\$1" in
+    --list-extensions) [ -f "\$state" ] && sed 's/^/cempack.epitech@/' "\$state"; echo other.extension@1.0.0 ;;
+    --install-extension) sed -n 's/^version=//p' "\$2" > "\$state"; echo "\$@" >> "${TEST_ROOT}/\$(basename "\$0").calls" ;;
+esac
+EOF2
+    chmod +x "${BIN}/$1"
+}
+
+release() { # release VERSION
+    printf 'version=%s\n' "$1" > "${TEST_ROOT}/epitech.vsix"
+    cat > "${TEST_ROOT}/latest.json" <<EOF2
+{
+  "tag_name": "vscode-v$1",
+  "assets": [
+    {
+      "name": "epitech.vsix",
+      "browser_download_url": "file://${TEST_ROOT}/epitech.vsix"
+    }
+  ]
+}
+EOF2
+}
+
+export EPITECH_VSCODE_API="file://${TEST_ROOT}/latest.json"
+ORIGINAL_PATH="$PATH"
+
+# No VS Code: nothing happens.
+PATH="${BIN}:/usr/bin:/bin"
+out=$(install_vscode_extension 0 0) || fail "no VS Code: failed"
+expect "no VS Code" "$out" 'no VS Code found'
+
+# Two editors, nothing installed: both get the release.
+fake_cli code
+fake_cli codium
+release 0.1.7
+out=$(install_vscode_extension 0 0) || fail "first install failed: $out"
+expect "first install" "$out" 'code: Epitech extension 0.1.7'
+expect "first install" "$out" 'codium: Epitech extension 0.1.7'
+[ "$(cat "${TEST_ROOT}/code.installed")" = 0.1.7 ] || fail "code didn't get 0.1.7"
+expect "install flags" "$(cat "${TEST_ROOT}/code.calls")" '^--install-extension .*/epitech.vsix --force$'
+
+# Same release again: left alone.
+out=$(install_vscode_extension 0 0) || fail "second run failed"
+expect "up to date" "$out" 'code: Epitech extension up to date \(0.1.7\)'
+[ "$(wc -l < "${TEST_ROOT}/code.calls")" -eq 1 ] || fail "reinstalled an up-to-date extension"
+
+# A newer release: --check only reports, a normal run updates.
+release 0.1.9
+out=$(install_vscode_extension 1 0) || fail "check failed"
+expect "check" "$out" 'code: Epitech extension 0.1.7 → 0.1.9 available'
+[ "$(cat "${TEST_ROOT}/code.installed")" = 0.1.7 ] || fail "--check installed something"
+out=$(install_vscode_extension 0 0) || fail "update failed"
+expect "update" "$out" 'code: Epitech extension 0.1.7 → 0.1.9'
+[ "$(cat "${TEST_ROOT}/codium.installed")" = 0.1.9 ] || fail "codium wasn't updated"
+
+# --force reinstalls.
+out=$(install_vscode_extension 0 1) || fail "force failed"
+[ "$(wc -l < "${TEST_ROOT}/code.calls")" -eq 3 ] || fail "--force didn't reinstall"
+
+# No release reachable: a warning and a failure, nothing installed.
+EPITECH_VSCODE_API="file://${TEST_ROOT}/missing.json"
+out=$(install_vscode_extension 0 0) && fail "a missing release succeeded"
+expect "no release" "$out" 'could not find the latest Epitech extension release'
+
+PATH="$ORIGINAL_PATH"
+printf '%s\n' "VS Code extension install tests passed"
