@@ -14,7 +14,11 @@
 #                      LazyVim and other plugins are never updated here.
 #   VS Code extension  epitech.vsix from cempack/epitech.nvim's latest release,
 #                      in each of code, codium and code-oss that's installed.
-# Checked only (owned by pacman/yay, never touched):
+#   Neovim             the copy in ~/.local the installer adds when the system's
+#                      is too old (Ubuntu 24.04), from Neovim's releases.
+# On Ubuntu, epiclang and banana come from Epitech's PPA through apt, which
+# updates them (sudo apt upgrade); they're only checked here.
+# Checked only (owned by pacman/yay or apt, never touched):
 #   criterion, teams-for-linux.
 #
 # Usage: epitech-upgrade [--check] [--force] [--help]
@@ -43,6 +47,13 @@ fail() { printf '  [FAIL] %s\n' "$*"; FAILED+=("$1"); }
 
 need_cmd() {
     command -v "$1" >/dev/null 2>&1 || { log "missing required command: $1"; exit 2; }
+}
+
+# Whether apt installed a package (Ubuntu, with Epitech's PPA): apt updates
+# it then, not this script.
+apt_managed() {
+    command -v dpkg-query >/dev/null 2>&1 \
+        && dpkg-query -W -f='${Status}' "$1" 2>/dev/null | grep -q 'install ok installed'
 }
 
 get_stamp() { [ -f "${STATE_DIR}/$1" ] && cat "${STATE_DIR}/$1" || echo ""; }
@@ -107,6 +118,10 @@ verify_epiclang() {
 do_epiclang() {
     local tmp="$1" ver stamp deb
     log "epiclang:"
+    if apt_managed epiclang; then
+        ok "installed by apt from Epitech's PPA ($(dpkg-query -W -f='${Version}' epiclang)): sudo apt upgrade updates it"
+        return
+    fi
     ver=$(ppa_latest_version epiclang) || { fail "epiclang (version lookup failed)"; return; }
     stamp=$(get_stamp epiclang)
     if [ "$ver" = "$stamp" ] && [ "$FORCE" -eq 0 ]; then ok "up to date ($ver)"; return; fi
@@ -130,6 +145,10 @@ do_epiclang() {
 do_banana() {
     local tmp="$1" ver stamp deb soname
     log "banana-coding-style-checker:"
+    if apt_managed banana-coding-style-checker; then
+        ok "installed by apt from Epitech's PPA ($(dpkg-query -W -f='${Version}' banana-coding-style-checker)): sudo apt upgrade updates it"
+        return
+    fi
     ver=$(ppa_latest_version banana-coding-style-checker) || { fail "banana (version lookup failed)"; return; }
     stamp=$(get_stamp banana)
     if [ "$ver" = "$stamp" ] && [ "$FORCE" -eq 0 ]; then ok "up to date ($ver)"; return; fi
@@ -283,7 +302,13 @@ do_vscode() {
 
 do_criterion_check() {
     local installed latest
+    if apt_managed epitech-criterion || apt_managed libcriterion-dev; then
+        log "criterion (apt-owned, check only):"
+        ok "installed by apt: sudo apt upgrade updates it"
+        return
+    fi
     log "criterion (pacman-owned, check only):"
+    command -v pacman >/dev/null 2>&1 || { warn "not installed"; return; }
     installed=$(pacman -Q criterion 2>/dev/null | awk '{print $2}' | cut -d- -f1) || { warn "not installed"; return; }
     latest=$(curl -sIL --max-time 30 -o /dev/null -w '%{url_effective}' \
         "https://github.com/Snaipe/Criterion/releases/latest" 2>/dev/null | grep -o '[^/]*$' | sed 's/^v//')
@@ -292,13 +317,42 @@ do_criterion_check() {
 }
 
 do_teams_check() {
+    local installed latest
+    if apt_managed teams-for-linux; then
+        log "teams-for-linux (apt-owned, check only):"
+        installed=$(dpkg-query -W -f='${Version}' teams-for-linux)
+        latest=$(curl -sIL --max-time 30 -o /dev/null -w '%{url_effective}' \
+            "https://github.com/IsmaelMartinez/teams-for-linux/releases/latest" 2>/dev/null | grep -o '[^/]*$' | sed 's/^v//')
+        if [ -z "$latest" ] || [ "$installed" = "$latest" ]; then
+            ok "installed ($installed)"
+        else
+            info "installed $installed, latest $latest — re-run install.sh to update"
+        fi
+        return
+    fi
     log "teams-for-linux (yay-owned, check only):"
-    if ! pacman -Q teams-for-linux-bin >/dev/null 2>&1; then warn "not installed — run: yay -S teams-for-linux-bin"; return; fi
+    if ! command -v pacman >/dev/null 2>&1 || ! pacman -Q teams-for-linux-bin >/dev/null 2>&1; then
+        warn "not installed — re-run install.sh"
+        return
+    fi
     if command -v yay >/dev/null 2>&1 && yay -Qua 2>/dev/null | grep -qi "teams-for-linux"; then
         info "update available — run: yay -Syu"
     else
         ok "up to date ($(pacman -Q teams-for-linux-bin | awk '{print $2}'))"
     fi
+}
+
+# The tools the installer put under ~/.local because the distribution's were
+# too old (Neovim on Ubuntu 24.04): kept current from their releases.
+do_user_tools() {
+    local dir
+    [ -x "${HOME}/.local/share/epitech-dump-arch/nvim/bin/nvim" ] || return 0
+    log "Neovim (installed in ~/.local):"
+    dir=$(dump_checkout "$1") || { fail "Neovim (repository download failed)"; return; }
+    [ -f "${dir}/lib/system.sh" ] || { fail "Neovim (lib/system.sh missing)"; return; }
+    # shellcheck source=lib/system.sh
+    . "${dir}/lib/system.sh" || { fail "Neovim (lib/system.sh failed to load)"; return; }
+    upgrade_user_neovim "$CHECK_ONLY" || fail "Neovim"
 }
 
 usage() { sed -n '2,/^$/p' "$0" | sed 's/^# //; s/^#//'; }
@@ -331,6 +385,7 @@ main() {
     do_nvim_cfg "$UPGRADE_TMP_DIR"
     do_tools "$UPGRADE_TMP_DIR"
     do_vscode "$UPGRADE_TMP_DIR"
+    do_user_tools "$UPGRADE_TMP_DIR"
     do_criterion_check
     do_teams_check
 

@@ -51,6 +51,8 @@ exit 0
 EOF
 chmod +x "$FAKE"/*
 PATH="${FAKE}:${PATH}"
+# The stand-in pacman answers for an Arch system, whatever runs the test.
+export DUMP_OS=arch
 
 # The old script's functions, then the step the weekly timer runs.
 out=$(
@@ -85,5 +87,23 @@ out=$(
 )
 [ "$(printf '%s\n' "$out" | grep -c '^epitech-\* commands')" -eq 1 ] || { printf '%s\n' "$out"; fail "tools step ran twice"; }
 printf '%s\n' "$out" | grep -q 'epitech-\* commands up to date' || { printf '%s\n' "$out"; fail "second run"; }
+
+# On Ubuntu the same step reports apt packages, asked to dpkg.
+cat > "${FAKE}/dpkg-query" <<'EOF'
+#!/bin/sh
+for last; do :; done
+case "$last" in epitech-cpool|gh) exit 1 ;; esac
+printf 'install ok installed'
+EOF
+chmod +x "${FAKE}/dpkg-query"
+out=$(
+    export DUMP_OS=ubuntu
+    # shellcheck disable=SC1090
+    . "$OLD"
+    UPGRADE_TMP_DIR=$(mktemp -d)
+    do_tools "$UPGRADE_TMP_DIR"
+)
+printf '%s\n' "$out" | grep -q 'missing: sudo apt install epitech-cpool gh$' \
+    || { printf '%s\n' "$out"; fail "missing apt packages not reported"; }
 
 printf '%s\n' "Old epitech-upgrade catch-up tests passed"

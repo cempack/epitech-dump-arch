@@ -34,9 +34,40 @@ for arg in "$@"; do
     esac
 done
 
+# The distribution, for the install commands the fixes give (DUMP_OS
+# overrides it). Ubuntu names its packages differently.
+if [ -n "${DUMP_OS:-}" ]; then
+    OS="$DUMP_OS"
+else
+    case " $( (. /etc/os-release 2>/dev/null; printf '%s %s' "${ID:-}" "${ID_LIKE:-}") ) " in
+        *" arch "*) OS=arch ;;
+        *" ubuntu "* | *" debian "*) OS=ubuntu ;;
+        *) OS=other ;;
+    esac
+fi
+# The command installing a package: install_fix ARCH_NAME [UBUNTU_NAME].
+install_fix() {
+    case "$OS" in
+        ubuntu) printf 'sudo apt install %s' "${2:-$1}" ;;
+        arch) printf 'sudo pacman -S %s' "$1" ;;
+        *) printf 'install %s' "${2:-$1}" ;;
+    esac
+}
+
 TMP=$(mktemp -d)
 trap 'rm -rf "$TMP"' EXIT
 REINSTALL="re-run the installer (install.sh, see the README)"
+# On Ubuntu, apt's Neovim and clang-format are too old and lazygit may be
+# missing: the installer puts them in ~/.local.
+if [ "$OS" = ubuntu ]; then
+    CLANG_FORMAT_FIX="uv tool install 'clang-format>=21' (or $REINSTALL)"
+    NEOVIM_FIX="$REINSTALL: it installs Neovim's release in ~/.local"
+    LAZYGIT_FIX="$REINSTALL"
+else
+    CLANG_FORMAT_FIX="sudo pacman -S clang"
+    NEOVIM_FIX="sudo pacman -S neovim"
+    LAZYGIT_FIX="sudo pacman -S lazygit"
+fi
 
 # Compiles $2 with the flags after it and runs it: ✓, or ✗ with what the
 # compiler or the program said, and the package to install only when a
@@ -46,7 +77,7 @@ build_and_run() {
     shift 3
     if ! output=$(cc -o "${source%.c}" "$source" "$@" 2>&1); then
         if printf '%s\n' "$output" | grep -qE 'No such file or directory|cannot find -l'; then
-            bad "$label: it doesn't build" "sudo pacman -S $package"
+            bad "$label: it doesn't build" "$package"
         else
             bad "$label: it doesn't build"
         fi
@@ -89,29 +120,29 @@ case ":${PATH}:" in
     *) bad "~/.local/bin is not on PATH: epiclang and the epitech-* commands won't be found" \
         "add 'export PATH=\"\$HOME/.local/bin:\$PATH\"' to your shell's rc file" ;;
 esac
-if command -v pacman >/dev/null 2>&1; then
-    good "Arch-based system ($(. /etc/os-release 2>/dev/null; printf '%s' "${PRETTY_NAME:-unknown}"))"
-else
-    meh "not an Arch-based system: the installer's package step won't run here"
-fi
+case "$OS" in
+    arch) good "Arch-based system ($(. /etc/os-release 2>/dev/null; printf '%s' "${PRETTY_NAME:-unknown}"))" ;;
+    ubuntu) good "Ubuntu-based system ($(. /etc/os-release 2>/dev/null; printf '%s' "${PRETTY_NAME:-unknown}"))" ;;
+    *) meh "neither Arch nor Ubuntu: the installer's package step won't run here" ;;
+esac
 
 section "Compiling and testing"
-need gcc "sudo pacman -S gcc"
-need clang "sudo pacman -S clang"
-need make "sudo pacman -S make"
+need gcc "$(install_fix gcc build-essential)"
+need clang "$(install_fix clang)"
+need make "$(install_fix make build-essential)"
 if command -v clang-format >/dev/null 2>&1; then
     version=$(clang-format --version | sed -E 's/.*version ([0-9]+).*/\1/')
     if [ "${version:-0}" -ge 21 ] 2>/dev/null; then
         good "clang-format $version"
     else
-        bad "clang-format $version is too old: the Epitech style needs 21 or newer" "sudo pacman -S clang"
+        bad "clang-format $version is too old: the Epitech style needs 21 or newer" "$CLANG_FORMAT_FIX"
     fi
 else
-    bad "clang-format is missing" "sudo pacman -S clang"
+    bad "clang-format is missing" "$CLANG_FORMAT_FIX"
 fi
-need valgrind "sudo pacman -S valgrind"
-need gdb "sudo pacman -S gdb"
-want gcovr "sudo pacman -S gcovr (coverage reports)"
+need valgrind "$(install_fix valgrind)"
+need gdb "$(install_fix gdb)"
+want gcovr "$(install_fix gcovr) (coverage reports)"
 if [ "$QUICK" -eq 0 ]; then
     cat > "$TMP/test.c" <<'EOF'
 #include <criterion/criterion.h>
@@ -121,7 +152,7 @@ Test(doctor, works)
     cr_assert_eq(1, 1);
 }
 EOF
-    build_and_run criterion "$TMP/test.c" "Criterion (a test)" -lcriterion
+    build_and_run "$(install_fix criterion epitech-criterion)" "$TMP/test.c" "Criterion (a test)" -lcriterion
     cat > "$TMP/csfml.c" <<'EOF'
 #include <SFML/System.h>
 
@@ -133,7 +164,7 @@ int main(void)
     return 0;
 }
 EOF
-    build_and_run csfml "$TMP/csfml.c" "CSFML (a program using sfClock)" -lcsfml-system
+    build_and_run "$(install_fix csfml libcsfml-dev)" "$TMP/csfml.c" "CSFML (a program using sfClock)" -lcsfml-system
 fi
 
 section "Coding style"
@@ -155,18 +186,18 @@ else
 fi
 
 section "Editors"
-need emacs "sudo pacman -S emacs"
+need emacs "$(install_fix emacs)"
 need epitech-emacs "$REINSTALL"
-need vim "sudo pacman -S vim"
+need vim "$(install_fix vim)"
 if command -v nvim >/dev/null 2>&1; then
     if nvim --clean --headless -u NONE "+lua if vim.fn.has('nvim-0.11.2') == 0 then vim.cmd('cquit 1') end" +qa \
         >/dev/null 2>&1; then
         good "nvim $(nvim --version | head -1 | sed 's/^NVIM //')"
     else
-        bad "Neovim is older than 0.11.2, which LazyVim needs" "sudo pacman -S neovim"
+        bad "Neovim is older than 0.11.2, which LazyVim needs" "$NEOVIM_FIX"
     fi
 else
-    bad "nvim is missing" "sudo pacman -S neovim"
+    bad "nvim is missing" "$NEOVIM_FIX"
 fi
 if [ -f "${CONFIG_HOME}/nvim/lua/config/lazy.lua" ]; then
     good "LazyVim configuration"
@@ -202,7 +233,7 @@ for cli in code codium code-oss code-insiders; do
 done
 
 section "Git and GitHub"
-need git "sudo pacman -S git"
+need git "$(install_fix git)"
 if [ -n "$(git config --global user.name 2>/dev/null)" ] && [ -n "$(git config --global user.email 2>/dev/null)" ]; then
     good "git identity: $(git config --global user.name) <$(git config --global user.email)>"
 else
@@ -215,7 +246,7 @@ else
     meh "no SSH key: you'll need one to push to your Epitech repositories" \
         "ssh-keygen -t ed25519, then add ~/.ssh/id_ed25519.pub to GitHub and the intranet"
 fi
-want lazygit "sudo pacman -S lazygit"
+want lazygit "$LAZYGIT_FIX"
 if command -v gh >/dev/null 2>&1; then
     if gh auth status >/dev/null 2>&1; then
         good "gh, logged in"
@@ -223,7 +254,7 @@ if command -v gh >/dev/null 2>&1; then
         meh "gh isn't logged in" "gh auth login"
     fi
 else
-    meh "gh is missing" "sudo pacman -S github-cli"
+    meh "gh is missing" "$(install_fix github-cli gh)"
 fi
 
 section "Updates"

@@ -7,23 +7,17 @@
 # fresh checkout, which calls this when the running epitech-upgrade has no
 # do_tools: an old install catches up on its next weekly run.
 
-# The pacman packages install.sh installs, read from its pacman line so the
-# list lives in one place.
-dump_packages() {
-    local install_sh="${1}/install.sh"
-    [ -f "$install_sh" ] || return 1
-    sed -n '/pacman -S --needed --noconfirm/,/|| die/p' "$install_sh" \
-        | sed 's/sudo pacman -S --needed --noconfirm//; s/|| die.*//; s/\\//g' \
-        | tr -s ' \t' '\n' | sed '/^$/d'
-}
-
-# The ones not installed, space-separated.
+# The packages install.sh adds that aren't installed, space-separated. The
+# lists live in lib/system.sh, next to this file in the checkout.
 missing_packages() {
     local package missing=""
-    command -v pacman >/dev/null 2>&1 || return 0
+    [ -f "${1}/lib/system.sh" ] || return 0
+    # shellcheck source=lib/system.sh
+    . "${1}/lib/system.sh" || return 0
+    case "$(dump_os)" in arch | ubuntu) ;; *) return 0 ;; esac
     while IFS= read -r package; do
-        pacman -Q "$package" >/dev/null 2>&1 || missing="${missing}${package} "
-    done < <(dump_packages "$1")
+        package_installed "$package" || missing="${missing}${package} "
+    done < <(dump_packages)
     printf '%s' "${missing% }"
 }
 
@@ -56,9 +50,11 @@ upgrade_dump_tools() {
         fi
     done
     [ "$changed" -eq 0 ] && ok "epitech-* commands up to date"
+    # shellcheck source=lib/system.sh
+    [ -f "${repo_dir}/lib/system.sh" ] && . "${repo_dir}/lib/system.sh"
     missing=$(missing_packages "$repo_dir")
     if [ -n "$missing" ]; then
-        info "packages the installer now adds are missing: sudo pacman -S --needed ${missing}"
+        info "packages the installer now adds are missing: $(install_hint "$missing")"
     fi
     return 0
 }

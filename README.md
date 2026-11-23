@@ -1,10 +1,10 @@
 # epitech-dump-arch
 
-The Epitech "dump" for **Arch Linux** and Omarchy: everything the school's
-`dump.sh` installs on Ubuntu, plus tools that check your project before the
-moulinette does. One command to install, and it updates itself every week.
-School binaries live in `~/.local`, system packages come from pacman: no
-root-owned hacks.
+The Epitech "dump" for **Arch Linux** (Omarchy, EndeavourOS…) and **Ubuntu**
+(24.04, 26.04 and derivatives): everything the school's `dump.sh` installs,
+plus Neovim with LazyVim and epitech.nvim, the VS Code extension, and tools
+that check your project before the moulinette does. One command to install
+(the same on both), and it updates itself every week.
 
 ```sh
 bash <(curl -fsSL https://raw.githubusercontent.com/cempack/epitech-dump-arch/main/install.sh)
@@ -188,13 +188,30 @@ command.
 
 Install VS Code after the dump? Run `epitech-upgrade` once.
 
+## Arch or Ubuntu
+
+The same command installs the same things; only where they come from
+differs.
+
+| | Arch | Ubuntu |
+|---|---|---|
+| School packages | pacman (`csfml`, `criterion`…) and the AUR (Teams) | Epitech's PPA (`ppa:epitech/ppa`, the school's own): `epitech-cpool` brings Banana, Criterion, CSFML, valgrind, tcsh… |
+| epiclang and Banana | from Epitech's PPA, unpacked into `~/.local` | apt, from the PPA |
+| Neovim 0.11+ | pacman | the official release in `~/.local` (Ubuntu 24.04 ships 0.9) |
+| clang-format 21+ | pacman | `uv tool` in `~/.local/bin` (Ubuntu's is 18) |
+| lazygit, Teams | pacman, the AUR | apt when it has it, else their GitHub releases |
+
+The PPA covers Ubuntu 24.04 (noble) and 26.04 (resolute). On another
+Ubuntu version, the installer uses Ubuntu's Criterion and CSFML, and
+`epitech-upgrade` installs epiclang and Banana into `~/.local` as on Arch.
+
 ## Install options
 
 ```sh
 git clone https://github.com/cempack/epitech-dump-arch.git
 cd epitech-dump-arch
 ./install.sh            # everything
-./install.sh --no-sys   # no pacman, AUR or sudo: user-space parts only
+./install.sh --no-sys   # no package manager or sudo: user-space parts only
 ```
 
 Re-running is safe. With `--no-sys`, the editors and tools (including
@@ -213,10 +230,13 @@ epitech-upgrade --check    # only report what's out of date
 systemctl --user list-timers | grep epitech
 ```
 
-System packages stay pacman's: `yay -Syu`. The updater runs without a
-terminal, so it never uses sudo: it tells you which packages the installer
-now adds (`sudo pacman -S --needed gdb lazygit github-cli`) and when
-Criterion or Teams have a new version.
+System packages stay the package manager's: `yay -Syu` on Arch,
+`sudo apt update && sudo apt upgrade` on Ubuntu (epiclang, Banana and
+Criterion included there). The updater runs without a terminal, so it never
+uses sudo: it tells you which packages the installer now adds
+(`sudo pacman -S --needed …` or `sudo apt install …`) and when Criterion or
+Teams have a new version. It also keeps the Neovim it put in `~/.local`
+current.
 
 Installs from before `epitech-doctor` existed catch up on their next update
 (or run `epitech-upgrade` now): it installs the new commands and replaces
@@ -240,7 +260,9 @@ rm -rf ~/.local/share/nvim/lazy/epitech.nvim ~/.local/share/nvim/epitech.nvim
 rm -rf ~/.local/lib/epiclang ~/.local/share/epitech-upgrade ~/.local/share/epitech-dump-arch
 ```
 
-Optionally `sudo pacman -Rns` the packages from `install.sh`, and remove the
+On Ubuntu, also `rm -rf ~/.local/share/epitech-dump-arch/nvim ~/.local/bin/nvim`
+and `uv tool uninstall clang-format` if the installer added them. Optionally
+remove the packages from `install.sh` (`sudo pacman -Rns`, `sudo apt remove`), and remove the
 Epitech blocks from `~/.emacs`, `~/.vimrc`, `~/.vim/epitech.vim` and
 `~/.emacs.d/lisp/{epitech,site-start.d}`. The LazyVim starter stays, since
 your Neovim config may hold your own changes.

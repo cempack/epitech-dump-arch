@@ -1,16 +1,18 @@
 #!/usr/bin/env bash
-# epitech-dump-arch — unofficial Epitech "dump" installer for Arch Linux / Omarchy.
+# epitech-dump-arch — unofficial Epitech "dump" installer for Arch Linux
+# (Omarchy, EndeavourOS…) and Ubuntu (24.04, 26.04 and derivatives).
 #
-# Gives you dump.sh parity without Ubuntu: system packages, AUR packages,
-# epiclang + banana coding-style checker, Epitech editor configs, launchers,
+# System packages (pacman and the AUR on Arch; apt and Epitech's own PPA on
+# Ubuntu), epiclang + banana coding-style checker, Epitech editor configs,
+# Neovim with LazyVim and epitech.nvim, the VS Code extension, launchers,
 # and a weekly systemd timer that keeps the Epitech bits up to date.
 #
 # Usage:
 #   bash <(curl -fsSL https://raw.githubusercontent.com/cempack/epitech-dump-arch/main/install.sh)
 #   ./install.sh [--no-sys]
 #
-#   --no-sys   skip pacman/AUR/sudo steps (user-space only). Use when you
-#              manage system packages yourself, or for testing.
+#   --no-sys   skip the package manager and sudo (user-space only). Use when
+#              you manage system packages yourself, or for testing.
 
 set -u
 
@@ -34,64 +36,32 @@ done
 
 [ "$EUID" -eq 0 ] && die "do not run as root — run as your user (sudo is used where needed)"
 
+# Tools installed under ~/.local (Neovim, clang-format, uv…) must be found
+# by the rest of the installer.
+mkdir -p "${HOME}/.local/bin"
+case ":${PATH}:" in *":${HOME}/.local/bin:"*) ;; *) export PATH="${HOME}/.local/bin:${PATH}" ;; esac
+
 if [ -f /etc/os-release ]; then
     # shellcheck disable=SC1091
-    . /etc/os-release
-    case "${ID:-} ${ID_LIKE:-}" in
-        *arch*) ok "OS: ${PRETTY_NAME:-unknown}" ;;
-        *) warn "not Arch/Omarchy (${PRETTY_NAME:-unknown}) — trying anyway" ;;
-    esac
+    ok "OS: $(. /etc/os-release; printf '%s' "${PRETTY_NAME:-unknown}")"
 fi
 
 if [ "$NO_SYS" -eq 0 ]; then
     command -v sudo >/dev/null 2>&1 || die "sudo is required (or re-run with --no-sys)"
-    command -v pacman >/dev/null 2>&1 || die "pacman not found — this installer targets Arch/Omarchy"
     sudo -v || die "sudo authentication failed"
-fi
-
-if [ "$NO_SYS" -eq 0 ]; then
-    log "system packages:"
-    sudo pacman -Sy --noconfirm >/dev/null 2>&1 || die "pacman sync failed"
-    sudo pacman -S --needed --noconfirm \
-        base-devel git gcovr csfml libjpeg-turbo libx11 freetype2 libvorbis \
-        openal libxi libxrandr xcb-util-image xcb-util criterion valgrind \
-        x264 tree unzip curl net-tools tcsh emacs vim neovim ripgrep fd \
-        clang clang21 llvm21-libs compiler-rt21 uv gdb lazygit github-cli \
-        || die "pacman install failed"
-    ok "pacman packages installed"
-
-    log "AUR packages:"
-    if ! command -v yay >/dev/null 2>&1; then
-        info "installing yay-bin..."
-        YAY_TMP=$(mktemp -d)
-        git clone -q --depth 1 https://aur.archlinux.org/yay-bin.git "${YAY_TMP}/yay-bin" \
-            || die "yay-bin clone failed"
-        (cd "${YAY_TMP}/yay-bin" && makepkg -si --noconfirm) || die "yay install failed"
-        rm -rf "$YAY_TMP"
-    fi
-    yay -S --needed --noconfirm teams-for-linux-bin || die "teams-for-linux install failed"
-    ok "teams-for-linux installed"
-
-    if ! locale -a 2>/dev/null | grep -qi "fr_fr"; then
-        if [ -f /etc/locale.gen ]; then
-            sudo sed -i 's/^#\(fr_FR.UTF-8\)/\1/' /etc/locale.gen
-            sudo locale-gen >/dev/null 2>&1 && ok "fr_FR.UTF-8 locale generated" \
-                || warn "locale-gen failed (non-fatal)"
+    # git, to fetch the rest of the installer.
+    if ! command -v git >/dev/null 2>&1; then
+        if command -v pacman >/dev/null 2>&1; then
+            sudo pacman -S --needed --noconfirm git >/dev/null || die "could not install git"
+        elif command -v apt-get >/dev/null 2>&1; then
+            sudo apt-get update -qq >/dev/null && sudo apt-get install -y -qq git curl >/dev/null \
+                || die "could not install git"
+        else
+            die "install git first"
         fi
-    else
-        ok "fr_FR locale present"
     fi
-else
-    info "skipping system packages (--no-sys)"
 fi
-
-for cmd in curl git python3 bsdtar emacs vim nvim clang-format tar uv; do
-    command -v "$cmd" >/dev/null 2>&1 || die "missing required command: $cmd (run without --no-sys to install it)"
-done
-if ! nvim --clean --headless -u NONE \
-    "+lua if vim.fn.has('nvim-0.11.2') == 0 then vim.cmd('cquit 1') end" +qa >/dev/null 2>&1; then
-    die "Neovim 0.11.2 or newer is required by LazyVim"
-fi
+command -v git >/dev/null 2>&1 || die "missing required command: git"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" >/dev/null 2>&1 && pwd)"
 if [ -f "${SCRIPT_DIR}/epitech-upgrade" ]; then
@@ -110,6 +80,26 @@ else
     fi
     REPO_DIR="$LOCAL_REPO_DIR"
 fi
+
+# shellcheck source=lib/system.sh
+. "${REPO_DIR}/lib/system.sh" || die "could not load the system installer"
+case "$(dump_os)" in
+    arch | ubuntu) ;;
+    *) warn "neither Arch nor Ubuntu: the package step won't run, install the packages yourself (see the README)" ;;
+esac
+
+if [ "$NO_SYS" -eq 0 ]; then
+    install_system_packages || die "the system packages aren't installed (see above)"
+else
+    info "skipping system packages (--no-sys)"
+fi
+
+log "user-space tools:"
+ensure_user_tools || die "a required tool is missing (see above)"
+
+for cmd in curl git python3 bsdtar emacs vim nvim clang-format tar uv; do
+    command -v "$cmd" >/dev/null 2>&1 || die "missing required command: $cmd (run without --no-sys to install it)"
+done
 
 # shellcheck source=lib/neovim.sh
 . "${REPO_DIR}/lib/neovim.sh" || die "could not load the Neovim installer"
