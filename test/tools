@@ -22,7 +22,7 @@ reject() {
 # A small project: main.c calls write and malloc, print.c calls printf.
 make_project() {
     local dir="$1"
-    mkdir -p "${dir}/src"
+    mkdir -p "${dir}/src" "${dir}/include"
     git -C "$dir" init -q
     git -C "$dir" config user.email test@example.com
     git -C "$dir" config user.name test
@@ -30,6 +30,7 @@ make_project() {
 NAME = demo
 SRC = src/main.c src/print.c
 OBJ = $(SRC:.c=.o)
+CFLAGS += -I include
 
 all: $(NAME)
 
@@ -49,11 +50,19 @@ tests_run:
 
 .PHONY: all clean fclean re tests_run
 EOF
+    # The prototype lives in a header: Banana reports one in a .c (C-H1).
+    cat > "${dir}/include/demo.h" <<'EOF'
+#ifndef DEMO_H_
+    #define DEMO_H_
+
+void print_hello(char const *name);
+
+#endif /* DEMO_H_ */
+EOF
     cat > "${dir}/src/main.c" <<'EOF'
 #include <stdlib.h>
 #include <unistd.h>
-
-void print_hello(char const *name);
+#include "demo.h"
 
 int main(void)
 {
@@ -316,7 +325,7 @@ esac
 EOF2
 chmod +x "${FAKE_CC}/cc"
 out=$(PATH="${FAKE_CC}:${EMPTY_BIN}" bash "${BIN}/epitech-doctor" 2>&1)
-expect "doctor link error" "$out" "✗ CSFML \(a program using sfClock\): it doesn't build"
+expect "doctor link error" "$out" "✗ CSFML( [23])? \(a program using sfClock\): it doesn't build"
 expect "doctor shows the error" "$out" "undefined reference to .sfClock_create"
 reject "doctor: no reinstall advice for a link error" "$out" "fix: sudo pacman -S csfml"
 expect "doctor criterion" "$out" "✓ Criterion \(a test\): compiles and runs"

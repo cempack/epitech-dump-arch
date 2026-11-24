@@ -76,7 +76,7 @@ build_and_run() {
     local package="$1" source="$2" label="$3" output status
     shift 3
     if ! output=$(cc -o "${source%.c}" "$source" "$@" 2>&1); then
-        if printf '%s\n' "$output" | grep -qE 'No such file or directory|cannot find -l'; then
+        if printf '%s\n' "$output" | grep -qE 'No such file or directory|cannot find -l|headers are missing'; then
             bad "$label: it doesn't build" "$package"
         else
             bad "$label: it doesn't build"
@@ -153,8 +153,21 @@ Test(doctor, works)
 }
 EOF
     build_and_run "$(install_fix criterion epitech-criterion)" "$TMP/test.c" "Criterion (a test)" -lcriterion
+    # CSFML 3 (Ubuntu 26.04, Arch) installs its headers in CSFML/, CSFML 2
+    # (Ubuntu 24.04) in SFML/: the test takes whichever is there.
+    csfml_label="CSFML"
+    for dir in /usr/include /usr/local/include; do
+        if [ -f "${dir}/CSFML/System.h" ]; then csfml_label="CSFML 3"; break; fi
+        if [ -f "${dir}/SFML/System.h" ]; then csfml_label="CSFML 2"; break; fi
+    done
     cat > "$TMP/csfml.c" <<'EOF'
-#include <SFML/System.h>
+#if __has_include(<CSFML/System.h>)
+    #include <CSFML/System.h>
+#elif __has_include(<SFML/System.h>)
+    #include <SFML/System.h>
+#else
+    #error "CSFML headers are missing (neither CSFML/System.h nor SFML/System.h)"
+#endif
 
 int main(void)
 {
@@ -164,7 +177,7 @@ int main(void)
     return 0;
 }
 EOF
-    build_and_run "$(install_fix csfml libcsfml-dev)" "$TMP/csfml.c" "CSFML (a program using sfClock)" -lcsfml-system
+    build_and_run "$(install_fix csfml libcsfml-dev)" "$TMP/csfml.c" "${csfml_label} (a program using sfClock)" -lcsfml-system
 fi
 
 section "Coding style"
