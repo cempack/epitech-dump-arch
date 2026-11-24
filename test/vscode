@@ -21,6 +21,15 @@ warn() { printf '  [!!] %s\n' "$*"; }
 # shellcheck source=lib/vscode.sh
 . "${REPO_DIR}/lib/vscode.sh"
 
+# Only these basic commands, never the machine's own code, fd, nvim…: the
+# tests must behave the same on a developer machine that has them all.
+SYS_BIN="${TEST_ROOT}/sys-bin"
+mkdir -p "$SYS_BIN"
+for tool in sh bash env sed grep awk head tail cat wc mktemp rm mv cp ln mkdir chmod \
+    basename dirname uname tr cut sort curl sha256sum; do
+    path=$(command -v "$tool") && ln -sf "$path" "${SYS_BIN}/${tool}"
+done
+
 BIN="${TEST_ROOT}/bin"
 mkdir -p "$BIN"
 # A VS Code CLI whose installed extensions live in a file: --install-extension
@@ -56,7 +65,7 @@ export EPITECH_VSCODE_API="file://${TEST_ROOT}/latest.json"
 ORIGINAL_PATH="$PATH"
 
 # No VS Code: nothing happens.
-PATH="${BIN}:/usr/bin:/bin"
+PATH="${BIN}:${SYS_BIN}"
 out=$(install_vscode_extension 0 0) || fail "no VS Code: failed"
 expect "no VS Code" "$out" 'no VS Code found'
 

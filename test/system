@@ -6,6 +6,15 @@ set -uo pipefail
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." >/dev/null 2>&1 && pwd)"
 TEST_ROOT=$(mktemp -d)
 trap 'rm -rf "$TEST_ROOT"' EXIT
+
+# Only these basic commands, never the machine's own code, fd, nvim…: the
+# tests must behave the same on a developer machine that has them all.
+SYS_BIN="${TEST_ROOT}/sys-bin"
+mkdir -p "$SYS_BIN"
+for tool in sh bash env sed grep awk head tail cat wc mktemp rm mv cp ln mkdir chmod \
+    basename dirname uname tr cut sort curl sha256sum; do
+    path=$(command -v "$tool") && ln -sf "$path" "${SYS_BIN}/${tool}"
+done
 fail() { printf 'FAILED: %s\n' "$*"; exit 1; }
 log() { :; }; ok() { printf 'ok: %s\n' "$*"; }; info() { :; }; warn() { printf 'warn: %s\n' "$*"; }
 # shellcheck source=lib/system.sh
@@ -28,7 +37,7 @@ printf '#!/bin/sh\nexit 0\n' > "${FAKE}/lazygit"
 printf '#!/bin/sh\nexit 0\n' > "${FAKE}/fdfind"
 printf '#!/bin/sh\necho "clang-format version 21.1.8"\n' > "${FAKE}/clang-format"
 chmod +x "$FAKE"/*
-out=$(HOME="${TEST_ROOT}/home" PATH="${FAKE}:/usr/bin:/bin" ensure_user_tools) || fail "ensure_user_tools: $out"
+out=$(HOME="${TEST_ROOT}/home" PATH="${FAKE}:${SYS_BIN}" ensure_user_tools) || fail "ensure_user_tools: $out"
 [ -L "${TEST_ROOT}/home/.local/bin/fd" ] || fail "fd not linked to fdfind"
 
 # An old clang-format is replaced through uv.
@@ -40,7 +49,7 @@ printf '#!/bin/sh\necho "clang-format version 21.1.8"\n' > "${TEST_ROOT}/home/.l
 chmod +x "${TEST_ROOT}/home/.local/bin/clang-format"
 EOF2
 chmod +x "${FAKE}/uv"
-out=$(HOME="${TEST_ROOT}/home" PATH="${TEST_ROOT}/home/.local/bin:${FAKE}:/usr/bin:/bin" ensure_user_tools) \
+out=$(HOME="${TEST_ROOT}/home" PATH="${TEST_ROOT}/home/.local/bin:${FAKE}:${SYS_BIN}" ensure_user_tools) \
     || fail "clang-format upgrade: $out"
 grep -q "tool install --force clang-format>=21" "${TEST_ROOT}/uv.args" || fail "uv not asked for clang-format"
 printf '%s\n' "$out" | grep -q 'clang-format 21.1.8 installed' || fail "no message: $out"
