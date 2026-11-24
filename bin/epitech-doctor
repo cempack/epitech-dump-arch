@@ -256,6 +256,11 @@ if command -v gh >/dev/null 2>&1; then
 else
     meh "gh is missing" "$(install_fix github-cli gh)"
 fi
+if command -v epi >/dev/null 2>&1; then
+    good "epi $(epi version 2>/dev/null | sed 's/^epi //')"
+else
+    meh "epi is missing (clones your projects and files their subjects)" "epitech-upgrade --force"
+fi
 
 section "Updates"
 need epitech-upgrade "$REINSTALL"

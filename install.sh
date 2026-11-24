@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
-# epitech-dump-arch — unofficial Epitech "dump" installer for Arch Linux
-# (Omarchy, EndeavourOS…) and Ubuntu (24.04, 26.04 and derivatives).
+# epitech-toolkit — unofficial Epitech setup for Arch Linux (Omarchy,
+# EndeavourOS…) and Ubuntu (24.04, 26.04 and derivatives).
 #
 # System packages (pacman and the AUR on Arch; apt and Epitech's own PPA on
 # Ubuntu), epiclang + banana coding-style checker, Epitech editor configs,
-# Neovim with LazyVim and epitech.nvim, the VS Code extension, launchers,
+# Neovim with LazyVim and epitech.nvim, the VS Code extension, epi, launchers,
 # and a weekly systemd timer that keeps the Epitech bits up to date.
 #
 # Usage:
-#   bash <(curl -fsSL https://raw.githubusercontent.com/cempack/epitech-dump-arch/main/install.sh)
+#   bash <(curl -fsSL https://raw.githubusercontent.com/cempack/epitech-toolkit/main/install.sh)
 #   ./install.sh [--no-sys]
 #
 #   --no-sys   skip the package manager and sudo (user-space only). Use when
@@ -16,7 +16,8 @@
 
 set -u
 
-REPO_URL="https://github.com/cempack/epitech-dump-arch"
+REPO_URL="https://github.com/cempack/epitech-toolkit"
+# Keeps the project's former name: existing installs live there.
 LOCAL_REPO_DIR="${HOME}/.local/share/epitech-dump-arch"
 NO_SYS=0
 
@@ -105,6 +106,8 @@ done
 . "${REPO_DIR}/lib/neovim.sh" || die "could not load the Neovim installer"
 # shellcheck source=lib/vscode.sh
 . "${REPO_DIR}/lib/vscode.sh" || die "could not load the VS Code installer"
+# shellcheck source=lib/epi.sh
+. "${REPO_DIR}/lib/epi.sh" || die "could not load the epi installer"
 
 log "Epitech tooling:"
 mkdir -p "${HOME}/.local/bin"
@@ -128,6 +131,9 @@ install_lazyvim
 
 log "VS Code:"
 install_vscode_extension 0 0 || warn "the Epitech extension for VS Code isn't installed: epitech-upgrade retries"
+
+log "epi:"
+install_epi 0 0 || warn "epi isn't installed: epitech-upgrade retries"
 
 if [ -x /opt/teams-for-linux/teams-for-linux ]; then
     ln -sf /opt/teams-for-linux/teams-for-linux "${HOME}/.local/bin/teams-for-linux"
@@ -153,10 +159,11 @@ case ":${PATH}:" in
     *) warn "${HOME}/.local/bin is not on PATH — add it to your shell rc" ;;
 esac
 log ""
-log "Epitech dump installed. Commands: epiclang, banana-check-repo,"
+log "Epitech toolkit installed. Commands: epiclang, banana-check-repo,"
 log "  epitech-emacs, epitech-upgrade, teams-for-linux, nvim,"
 log "  epitech-doctor (is everything working?), epitech-predeliver (is this"
-log "  project ready to push?), epitech-mem (leaks and memory errors)."
+log "  project ready to push?), epitech-mem (leaks and memory errors),"
+log "  epi (your Epitech folder: clone projects, file subjects; new terminal first)."
 log "LazyVim: <leader>cf formats C; <leader>cH inserts an Epitech header."
 log "         <leader>cG adds a filename-based include guard to a .h file."
 log "VS Code: the Epitech extension formats on save (Shift+Alt+F), shows"

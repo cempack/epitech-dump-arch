@@ -1,0 +1,119 @@
+#!/usr/bin/env bash
+# Tests for lib/epi.sh: epi comes from the latest release, is updated only
+# when that release is newer, is checked against SHA256SUMS and run once
+# before it replaces the installed one, and is hooked into bash and zsh on
+# its first install only.
+# Releases are file:// URLs; the "binaries" are shell scripts.
+set -uo pipefail
+
+REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." >/dev/null 2>&1 && pwd)"
+TEST_ROOT=$(mktemp -d)
+trap 'rm -rf "$TEST_ROOT"' EXIT
+
+fail() { printf 'FAILED: %s\n' "$*"; exit 1; }
+expect() { # expect LABEL TEXT PATTERN
+    printf '%s\n' "$2" | grep -qE -- "$3" || { printf '%s\n' "$2"; fail "$1: no match for /$3/"; }
+}
+
+log() { printf '%s\n' "$*"; }
+ok() { printf '  [ok] %s\n' "$*"; }
+info() { printf '  [..] %s\n' "$*"; }
+warn() { printf '  [!!] %s\n' "$*"; }
+# shellcheck source=lib/epi.sh
+. "${REPO_DIR}/lib/epi.sh"
+
+export HOME="${TEST_ROOT}/home"
+export PREFIX="${HOME}/.local"
+unset ZDOTDIR
+mkdir -p "$HOME"
+printf '# bash\n' > "${HOME}/.bashrc"
+printf '# zsh\n' > "${HOME}/.zshrc"
+BIN="${PREFIX}/bin/epi"
+ASSET=$(epi_asset) || { printf '%s\n' "epi tests skipped: no build for $(uname -m)"; exit 0; }
+REL="${TEST_ROOT}/release"
+
+# release VERSION [broken|badsum]
+release() {
+    rm -rf "$REL" && mkdir -p "$REL"
+    if [ "${2:-}" = broken ]; then
+        printf '#!/bin/sh\nexit 1\n' > "${REL}/${ASSET}"
+    else
+        printf '#!/bin/sh\n[ "$1" = version ] && echo "epi %s"\n' "$1" > "${REL}/${ASSET}"
+    fi
+    if [ "${2:-}" = badsum ]; then
+        printf '%064d  %s\n' 0 "$ASSET" > "${REL}/SHA256SUMS"
+    else
+        (cd "$REL" && sha256sum "$ASSET" > SHA256SUMS)
+    fi
+    cat > "${TEST_ROOT}/latest.json" <<EOF2
+{
+  "tag_name": "v$1",
+  "assets": [
+    {
+      "name": "${ASSET}",
+      "browser_download_url": "file://${REL}/${ASSET}"
+    },
+    {
+      "name": "SHA256SUMS",
+      "browser_download_url": "file://${REL}/SHA256SUMS"
+    }
+  ]
+}
+EOF2
+}
+installed() { "$BIN" version | sed 's/^epi //'; }
+
+export EPITECH_EPI_API="file://${TEST_ROOT}/latest.json"
+
+# Nothing installed: the release goes in, and both shells get the hook.
+release 1.0.0
+out=$(install_epi 0 0) || fail "first install failed: $out"
+expect "first install" "$out" 'epi 1.0.0'
+[ "$(installed)" = 1.0.0 ] || fail "epi 1.0.0 wasn't installed"
+expect "bash hook" "$out" 'epi hooked into .bashrc'
+expect "zsh hook" "$out" 'epi hooked into .zshrc'
+grep -q 'eval "$(command epi shell)"' "${HOME}/.bashrc" || fail "no hook in .bashrc"
+
+# Same release again: left alone, hook not added twice.
+out=$(install_epi 0 0) || fail "second run failed"
+expect "up to date" "$out" 'epi up to date \(1.0.0\)'
+[ "$(grep -c 'epi shell' "${HOME}/.bashrc")" -eq 1 ] || fail "hook added twice to .bashrc"
+[ "$(grep -c 'epi shell' "${HOME}/.zshrc")" -eq 1 ] || fail "hook added twice to .zshrc"
+
+# A hook the user removed isn't added back by updates.
+printf '# bash, hook removed\n' > "${HOME}/.bashrc"
+
+# A newer release: --check only reports, a normal run updates.
+release 1.1.0
+out=$(install_epi 1 0) || fail "check failed"
+expect "check" "$out" 'epi 1.0.0 → 1.1.0 available'
+[ "$(installed)" = 1.0.0 ] || fail "--check installed something"
+out=$(install_epi 0 0) || fail "update failed: $out"
+expect "update" "$out" 'epi 1.0.0 → 1.1.0'
+[ "$(installed)" = 1.1.0 ] || fail "epi wasn't updated"
+grep -q 'epi shell' "${HOME}/.bashrc" && fail "an update added back a removed hook"
+
+# --force reinstalls the same version.
+printf '#!/bin/sh\necho "epi 1.1.0"\n# local edit\n' > "$BIN"
+out=$(install_epi 0 1) || fail "force failed"
+grep -q 'local edit' "$BIN" && fail "--force didn't reinstall"
+
+# A download that doesn't match SHA256SUMS never replaces epi.
+release 1.2.0 badsum
+out=$(install_epi 0 0) && fail "a bad checksum succeeded"
+expect "bad checksum" "$out" "doesn't match the release checksum"
+[ "$(installed)" = 1.1.0 ] || fail "a bad download replaced epi"
+
+# Nor does one that doesn't run.
+release 1.2.0 broken
+out=$(install_epi 0 0) && fail "a broken binary succeeded"
+expect "broken binary" "$out" "doesn't run"
+[ "$(installed)" = 1.1.0 ] || fail "a broken binary replaced epi"
+[ -z "$(find "${PREFIX}/bin" -name 'epi.*')" ] || fail "a temporary file was left behind"
+
+# No release reachable: a warning and a failure.
+EPITECH_EPI_API="file://${TEST_ROOT}/missing.json"
+out=$(install_epi 0 0) && fail "a missing release succeeded"
+expect "no release" "$out" 'could not find the latest epi release'
+
+printf '%s\n' "epi install tests passed"

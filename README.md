@@ -1,13 +1,16 @@
-# epitech-dump-arch
+# epitech-toolkit
 
-The Epitech "dump" for **Arch Linux** (Omarchy, EndeavourOS…) and **Ubuntu**
-(24.04, 26.04 and derivatives): everything the school's `dump.sh` installs,
-plus Neovim with LazyVim and epitech.nvim, the VS Code extension, and tools
-that check your project before the moulinette does. One command to install
-(the same on both), and it updates itself every week.
+Everything an Epitech student needs on **Arch Linux** (Omarchy, EndeavourOS…)
+and **Ubuntu** (24.04, 26.04 and derivatives): what the school's `dump.sh`
+installs, plus Neovim with LazyVim and epitech.nvim, the VS Code extension,
+tools that check your project before the moulinette does, and `epi` to keep
+your Epitech folder organized. One command to install (the same on both),
+and it updates itself every week.
+
+Formerly `epitech-dump-arch`: the old address still works.
 
 ```sh
-bash <(curl -fsSL https://raw.githubusercontent.com/cempack/epitech-dump-arch/main/install.sh)
+bash <(curl -fsSL https://raw.githubusercontent.com/cempack/epitech-toolkit/main/install.sh)
 ```
 
 Then run `epitech-doctor` to see that everything works.
@@ -19,7 +22,31 @@ Then run `epitech-doctor` to see that everything works.
 | **School tools** | `epiclang` with Banana and `banana-check-repo` (the same packages as the Epitech PPA), Criterion, CSFML, `tcsh`, Teams |
 | **Editors** | Neovim with LazyVim and [epitech.nvim](https://github.com/cempack/epitech.nvim), the Epitech extension for VS Code (when VS Code, VSCodium or Code - OSS is installed), the Epitech Vim config, the Epitech Emacs config (`epitech-emacs`) |
 | **Development** | gcc, clang 21, gdb, valgrind, gcovr, make, lazygit, gh, ripgrep, fd, `mbake` |
-| **Its own commands** | `epitech-predeliver`, `epitech-mem`, `epitech-doctor`, `epitech-upgrade` |
+| **Its own commands** | `epitech-predeliver`, `epitech-mem`, `epitech-doctor`, `epitech-upgrade`, [`epi`](https://github.com/cempack/epi) |
+
+## Your Epitech folder: `epi`
+
+[epi](https://github.com/cempack/epi) clones each project into the right
+place, with the right name, and files its subject next to it:
+
+```
+~/Epitech/tek1/
+  pool/                  day01 … day13, rush1, rush2, star, subjects/
+  psu100_unix/           my_ls, my_sudo, subjects/
+  mul100_graphics/       my_hunter, my_radar, subjects/
+```
+
+- `epi new` lists the Epitech repositories on your GitHub you haven't cloned
+  yet; pick one and it lands in `tek1/<module>/<name>`, named from its subject
+  (`myls` → `my_ls`), with the subject PDFs moved out of `~/Downloads` as
+  `my_ls.pdf` and `my_ls-bootstrap.pdf`.
+- `epi` browses your projects (uncommitted, unpushed, last commit, subjects);
+  **enter** puts your shell in the project.
+- `epi doctor` finds misplaced projects, unsaved work, clutter and subjects
+  left in `~/Downloads`.
+
+It needs `gh auth login` once. The installer adds the line that lets `epi`
+change directory to `~/.bashrc` (and `~/.zshrc`) the first time.
 
 ## Before you push: `epitech-predeliver`
 
@@ -208,8 +235,8 @@ Ubuntu version, the installer uses Ubuntu's Criterion and CSFML, and
 ## Install options
 
 ```sh
-git clone https://github.com/cempack/epitech-dump-arch.git
-cd epitech-dump-arch
+git clone https://github.com/cempack/epitech-toolkit.git
+cd epitech-toolkit
 ./install.sh            # everything
 ./install.sh --no-sys   # no package manager or sudo: user-space parts only
 ```
@@ -221,8 +248,8 @@ Re-running is safe. With `--no-sys`, the editors and tools (including
 
 A weekly timer runs `epitech-upgrade`: epiclang and Banana from the Epitech
 PPA, the Emacs and Vim configs, epitech.nvim (`:Lazy update epitech.nvim`
-only, never your other plugins), the VS Code extension, and this project's
-commands.
+only, never your other plugins), the VS Code extension, `epi`, and this
+project's commands.
 
 ```sh
 epitech-upgrade            # now
@@ -252,7 +279,7 @@ the repositories where you added its pre-push hook, and
 ```sh
 systemctl --user disable --now epitech-upgrade.timer
 rm ~/.config/systemd/user/epitech-upgrade.{service,timer}
-rm ~/.local/bin/{epitech-upgrade,epitech-doctor,epitech-predeliver,epitech-mem,epitech-emacs}
+rm ~/.local/bin/{epitech-upgrade,epitech-doctor,epitech-predeliver,epitech-mem,epitech-emacs,epi}
 rm ~/.local/bin/{epiclang,epiclang.py,banana-check-repo,teams-for-linux}
 rm ~/.config/nvim/lua/plugins/epitech-dump-arch.lua
 code --uninstall-extension cempack.epitech   # or codium / code-oss
@@ -264,13 +291,18 @@ On Ubuntu, also `rm -rf ~/.local/share/epitech-dump-arch/nvim ~/.local/bin/nvim`
 and `uv tool uninstall clang-format` if the installer added them. Optionally
 remove the packages from `install.sh` (`sudo pacman -Rns`, `sudo apt remove`), and remove the
 Epitech blocks from `~/.emacs`, `~/.vimrc`, `~/.vim/epitech.vim` and
-`~/.emacs.d/lisp/{epitech,site-start.d}`. The LazyVim starter stays, since
+`~/.emacs.d/lisp/{epitech,site-start.d}`, and the `epi` line from `~/.bashrc`
+(and `~/.zshrc`). The LazyVim starter stays, since
 your Neovim config may hold your own changes.
 
 ## Development
 
 `test/run` runs the tests (set `EPITECH_NVIM_DIR` to test against a local
 epitech.nvim checkout).
+
+Files on disk keep the project's former name (`~/.local/share/epitech-dump-arch`,
+`lua/plugins/epitech-dump-arch.lua` and its `Managed by` line) so existing
+installs keep working.
 
 Unofficial, not affiliated with Epitech. Parity target: the school's
 `dump.sh` and the Epitech PPA for Ubuntu 26.04.

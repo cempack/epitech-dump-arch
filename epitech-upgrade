@@ -8,12 +8,13 @@
 #   epitech-emacs      config tracks GitHub HEAD (Epitech/epitech-emacs).
 #   vim-epitech        config tracks GitHub HEAD (Epitech/vim-epitech).
 #   epitech-doctor, epitech-predeliver, epitech-mem
-#                      track this project's HEAD (cempack/epitech-dump-arch).
+#                      track this project's HEAD (cempack/epitech-toolkit).
 #   epitech.nvim       plugin tracks GitHub HEAD (cempack/epitech.nvim) through
 #                      lazy.nvim; the LazyVim spec tracks this project's HEAD.
 #                      LazyVim and other plugins are never updated here.
 #   VS Code extension  epitech.vsix from cempack/epitech.nvim's latest release,
 #                      in each of code, codium and code-oss that's installed.
+#   epi                the binary from cempack/epi's latest release.
 #   Neovim             the copy in ~/.local the installer adds when the system's
 #                      is too old (Ubuntu 24.04), from Neovim's releases.
 # On Ubuntu, epiclang and banana come from Epitech's PPA through apt, which
@@ -33,7 +34,7 @@ BACKUP_DIR="${STATE_DIR}/backups"
 PPA_API="https://api.launchpad.net/1.0/~epitech/+archive/ubuntu/ppa"
 PPA_SERIES="https://api.launchpad.net/1.0/ubuntu/resolute/amd64"
 PPA_FILES="https://launchpad.net/~epitech/+archive/ubuntu/ppa/+files"
-EPITECH_REPO_URL="${EPITECH_REPO_URL:-https://github.com/cempack/epitech-dump-arch.git}"
+EPITECH_REPO_URL="${EPITECH_REPO_URL:-https://github.com/cempack/epitech-toolkit.git}"
 
 CHECK_ONLY=0
 FORCE=0
@@ -300,6 +301,17 @@ do_vscode() {
     install_vscode_extension "$CHECK_ONLY" "$FORCE" || fail "VS Code extension"
 }
 
+# epi, the Epitech folder manager (lib/epi.sh).
+do_epi() {
+    local dir
+    log "epi:"
+    dir=$(dump_checkout "$1") || { fail "epi (repository download failed)"; return; }
+    [ -f "${dir}/lib/epi.sh" ] || { fail "epi (lib/epi.sh missing)"; return; }
+    # shellcheck source=lib/epi.sh
+    . "${dir}/lib/epi.sh" || { fail "epi (lib/epi.sh failed to load)"; return; }
+    install_epi "$CHECK_ONLY" "$FORCE" || fail "epi"
+}
+
 do_criterion_check() {
     local installed latest
     if apt_managed epitech-criterion || apt_managed libcriterion-dev; then
@@ -385,6 +397,7 @@ main() {
     do_nvim_cfg "$UPGRADE_TMP_DIR"
     do_tools "$UPGRADE_TMP_DIR"
     do_vscode "$UPGRADE_TMP_DIR"
+    do_epi "$UPGRADE_TMP_DIR"
     do_user_tools "$UPGRADE_TMP_DIR"
     do_criterion_check
     do_teams_check

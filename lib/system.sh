@@ -28,7 +28,7 @@ dump_os() {
 }
 
 # The pacman packages (the same list as the school's dump, plus the tools
-# epitech-dump-arch adds).
+# epitech-toolkit adds).
 ARCH_PACKAGES=(
     base-devel git gcovr csfml libjpeg-turbo libx11 freetype2 libvorbis
     openal libxi libxrandr xcb-util-image xcb-util criterion valgrind
