@@ -16,8 +16,8 @@
   <meta property="og:image" content="https://epitech.elliotmoreau.fr/assets/og.png">
   <meta name="twitter:card" content="summary_large_image">
   <link rel="preload" href="/fonts/Geist-Variable.woff2" as="font" type="font/woff2" crossorigin>
-  <link rel="preload" href="/assets/epi.webp?v=3" as="image" type="image/webp">
-  <link rel="stylesheet" href="/style.css?v=4">
+  <link rel="preload" href="/assets/epi.webp?v=5" as="image" type="image/webp">
+  <link rel="stylesheet" href="/style.css?v=5">
 </head>
 <body>
   <header class="nav">
@@ -50,7 +50,6 @@
             <code><span class="prompt">$</span> bash &lt;(curl -fsSL https://raw.githubusercontent.com/cempack/epitech-toolkit/main/install.sh)</code>
             <button class="copy" type="button">Copy</button>
           </div>
-          <p class="hint">Scroll, the window follows.</p>
         </div>
       </section>
 
@@ -61,7 +60,7 @@
           <p>epi clones each repository into its module, names it from the subject, and files the PDFs next to it.</p>
           <code class="chip">epi</code>
         </div>
-        <figure class="shot"><img src="/assets/epi.webp?v=3" width="2200" height="1499" loading="lazy" alt="The epi dashboard: projects by module, my_sudo selected with its git status, its bootstrap folder and three subjects to open."></figure>
+        <figure class="shot" data-title="epi — ~/Epitech"><img src="/assets/epi.webp?v=5" width="2193" height="1456" loading="lazy" alt="The epi dashboard: projects by module, my_sudo selected with its git status, its bootstrap folder and three subjects to open."></figure>
       </section>
 
       <section class="chapter" data-act="write" data-title="Project skeleton">
@@ -71,7 +70,7 @@
           <p>Makefile, header and guard, error helper, a Criterion test and <code>.gitignore</code>, from one command.</p>
           <code class="chip">:EpitechNew my_ls</code>
         </div>
-        <figure class="shot"><img src="/assets/scaffold.webp?v=3" width="2200" height="1512" loading="lazy" alt="Neovim after :EpitechNew my_ls: the generated tree next to the Makefile."></figure>
+        <figure class="shot" data-title="nvim — ~/delivery/my_ls"><img src="/assets/scaffold.webp?v=5" width="2175" height="1456" loading="lazy" alt="Neovim after :EpitechNew my_ls: the generated tree next to the Makefile."></figure>
       </section>
 
       <section class="chapter" data-act="write" data-title="libmy on demand">
@@ -81,7 +80,7 @@
           <p>Call any of your 35 Pool functions. It lands in <code>lib/my</code> with what it calls, and <code>my.h</code> follows.</p>
           <code class="chip">&lt;leader&gt;ca</code>
         </div>
-        <figure class="shot"><img src="/assets/libmy.webp?v=3" width="2200" height="1512" loading="lazy" alt="entry.c calls my_strdup with no error, and lib/my now holds my_strdup.c and my_strcpy.c."></figure>
+        <figure class="shot" data-title="nvim — src/entry.c"><img src="/assets/libmy.webp?v=5" width="2175" height="1456" loading="lazy" alt="entry.c calls my_strdup with no error, and lib/my now holds my_strdup.c and my_strcpy.c."></figure>
       </section>
 
       <section class="chapter" data-act="write" data-title="Live meters">
@@ -91,7 +90,7 @@
           <p>Lines and arguments per function, nesting depth, Banana's reports as you save, and hints for what only graders check.</p>
           <code class="chip">Neovim · VS Code</code>
         </div>
-        <figure class="shot"><img src="/assets/meters.webp?v=3" width="2200" height="1499" loading="lazy" alt="parse_args at 17/20 lines and 4/4 args, nested ifs marked depth 3 to 5 with Banana's reports, hints on magic numbers."></figure>
+        <figure class="shot" data-title="nvim — src/parser.c"><img src="/assets/meters.webp?v=5" width="2193" height="1456" loading="lazy" alt="parse_args at 17/20 lines and 4/4 args, nested ifs marked depth 3 to 5 with Banana's reports, hints on magic numbers."></figure>
       </section>
 
       <section class="chapter" data-act="write" data-title="Rules, explained">
@@ -101,7 +100,7 @@
           <p>The rule under the cursor: how severe it is, who checks it, a bad and a good example.</p>
           <code class="chip">&lt;leader&gt;cE</code>
         </div>
-        <figure class="shot"><img src="/assets/explain.webp?v=3" width="2200" height="1499" loading="lazy" alt="The explanation of C-C1: the rule, what was measured, a bad if chain and a good switch."></figure>
+        <figure class="shot" data-title="nvim — src/parser.c"><img src="/assets/explain.webp?v=5" width="2193" height="1456" loading="lazy" alt="The explanation of C-C1: the rule, what was measured, a bad if chain and a good switch."></figure>
       </section>
 
       <section class="chapter" data-act="write" data-title="One-key fixes">
@@ -111,7 +110,7 @@
           <p>Convert to switch, split statements, pass by pointer, name a number, extract a function. Only when the code still does the same.</p>
           <code class="chip">&lt;leader&gt;ca · Ctrl+.</code>
         </div>
-        <figure class="shot"><img src="/assets/fixes.webp?v=3" width="2200" height="1499" loading="lazy" alt="A diff of Convert to switch: the four-branch if chain on the left, the switch on the right."></figure>
+        <figure class="shot" data-title="nvim — src/flags.c"><img src="/assets/fixes.webp?v=5" width="2193" height="1456" loading="lazy" alt="A diff of Convert to switch: the four-branch if chain on the left, the switch on the right."></figure>
       </section>
 
       <section class="chapter" data-act="ship" data-title="Tests and coverage">
@@ -121,7 +120,7 @@
           <p>Failed asserts at their line. Green in the gutter where the tests ran, red where they didn't.</p>
           <code class="chip">&lt;leader&gt;cT</code>
         </div>
-        <figure class="shot"><img src="/assets/tests.webp?v=3" width="2200" height="1499" loading="lazy" alt="src/load.c after the tests: green coverage bars, a red bar on return -1, the failed assert listed below."></figure>
+        <figure class="shot" data-title="nvim — src/load.c"><img src="/assets/tests.webp?v=5" width="2193" height="1456" loading="lazy" alt="src/load.c after the tests: green coverage bars, a red bar on return -1, the failed assert listed below."></figure>
       </section>
 
       <section class="chapter" data-act="ship" data-title="Project check">
@@ -131,7 +130,7 @@
           <p>Banana on every file, the hints, the Makefile, tracked build products. A pre-push hook stops <code>git push</code> on a Major.</p>
           <code class="chip">&lt;leader&gt;cB</code>
         </div>
-        <figure class="shot"><img src="/assets/check.webp?v=3" width="2200" height="1499" loading="lazy" alt="The project check: Majors and hints from three files, each at its line."></figure>
+        <figure class="shot" data-title="nvim — src/parser.c"><img src="/assets/check.webp?v=5" width="2193" height="1456" loading="lazy" alt="The project check: Majors and hints from three files, each at its line."></figure>
       </section>
 
       <section class="chapter" data-act="ship" data-title="Pre-delivery">
@@ -141,7 +140,7 @@
           <p>A fresh clone of what you committed: build, relink, Banana, authorized functions, tests and coverage.</p>
           <code class="chip">epitech-predeliver</code>
         </div>
-        <figure class="shot"><img src="/assets/predeliver.webp?v=3" width="1500" height="1517" loading="lazy" alt="epitech-predeliver on my_ls: an untracked file, a tracked .o, a prototype in a .c, printf not authorized; tests pass at 88.9% coverage."></figure>
+        <figure class="shot" data-title="bash — epitech-predeliver"><img src="/assets/predeliver.webp?v=5" width="1767" height="1751" loading="lazy" alt="epitech-predeliver on my_ls: an untracked file, a tracked .o, a prototype in a .c, printf not authorized; tests pass at 88.9% coverage."></figure>
       </section>
 
       <section class="chapter" data-act="ship" data-title="Memory">
@@ -151,7 +150,7 @@
           <p>Valgrind's errors, leaks and open files, at the line of your code that caused them.</p>
           <code class="chip">epitech-mem ./my_cat</code>
         </div>
-        <figure class="shot"><img src="/assets/mem.webp?v=3" width="1500" height="1111" loading="lazy" alt="epitech-mem: a write one byte past a malloc, the leak, and a file left open, each with its source line."></figure>
+        <figure class="shot" data-title="bash — epitech-mem"><img src="/assets/mem.webp?v=5" width="1619" height="1161" loading="lazy" alt="epitech-mem: a write one byte past a malloc, the leak, and a file left open, each with its source line."></figure>
       </section>
 
       <section class="chapter install" id="install" data-act="install" data-title="Install">
@@ -164,14 +163,23 @@
           </div>
           <p>Then open a new terminal and run <code>epitech-doctor</code>: it compiles a real Criterion test and a CSFML program, and prints the fix for anything missing.</p>
         </div>
-        <figure class="shot"><img src="/assets/doctor.webp?v=3" width="1500" height="2153" loading="lazy" alt="epitech-doctor: every check passes, from compilers and Criterion to Neovim, VS Code, epi and the weekly timer."></figure>
+        <figure class="shot" data-title="bash — epitech-doctor"><img src="/assets/doctor.webp?v=5" width="1564" height="2211" loading="lazy" alt="epitech-doctor: every check passes, from compilers and Criterion to Neovim, VS Code, epi and the weekly timer."></figure>
       </section>
+      <footer class="footer">
+        <p>Unofficial, not affiliated with Epitech. MIT license.</p>
+        <p class="footer-links">
+          <a href="https://github.com/cempack/epitech-toolkit">epitech-toolkit</a>
+          <a href="https://github.com/cempack/epitech.nvim">epitech.nvim</a>
+          <a href="https://github.com/cempack/epi">epi</a>
+          <a href="https://elliotmoreau.fr">Elliot Moreau</a>
+        </p>
+      </footer>
     </div>
 
     <div class="stage">
       <div class="window" aria-hidden="true"><div class="frames"></div></div>
       <div class="dock">
-        <p class="dock-label"><span class="dock-act"></span><span class="dock-title"></span></p>
+        <p class="dock-label"><span class="dock-count"></span><span class="dock-title"></span></p>
         <div class="dock-bar"></div>
         <div class="dock-nav">
           <button type="button" data-step="-1" aria-label="Previous feature">←</button>
@@ -181,16 +189,7 @@
     </div>
   </main>
 
-  <footer class="footer wrap">
-    <p>Unofficial, not affiliated with Epitech. MIT license.</p>
-    <p class="footer-links">
-      <a href="https://github.com/cempack/epitech-toolkit">epitech-toolkit</a>
-      <a href="https://github.com/cempack/epitech.nvim">epitech.nvim</a>
-      <a href="https://github.com/cempack/epi">epi</a>
-      <a href="https://elliotmoreau.fr">Elliot Moreau</a>
-    </p>
-  </footer>
 
-  <script src="/main.js?v=4" defer></script>
+  <script src="/main.js?v=5" defer></script>
 </body>
 </html>

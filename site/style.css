@@ -33,7 +33,6 @@
   --dim: #5d6271;
   --accent: #4cc38a;
   --ease: cubic-bezier(0.22, 1, 0.36, 1);
-  --stage-h: min(68vh, 600px);
   color-scheme: dark;
 }
 
@@ -97,6 +96,8 @@ code { font-family: "Geist Mono", ui-monospace, monospace; }
   color: var(--tint);
 }
 .act::before { content: ""; width: 22px; height: 1px; background: currentColor; opacity: 0.7; }
+/* Each chapter keeps its own act's color, even while the tint is fading. */
+.chapter .act { color: #4cc38a; }
 .chapter[data-act="organize"] .act { color: #8db6ff; }
 .chapter[data-act="ship"] .act { color: #f1b65f; }
 
@@ -131,11 +132,10 @@ h2 span { color: var(--muted); }
 }
 
 /* Cover */
-.platforms { display: flex; flex-wrap: wrap; gap: 8px 20px; margin: 0 0 30px !important; font-size: 14px !important; }
+.chapter .platforms { display: flex; flex-wrap: wrap; gap: 8px 20px; margin: 0 0 30px; font-size: 14px; }
 .platforms span { display: inline-flex; align-items: center; gap: 8px; }
 .platforms svg { width: 15px; height: 15px; fill: currentColor; opacity: 0.9; }
 .cover .lead { font-size: 1.15rem; max-width: 34ch; margin-bottom: 32px; }
-.hint { margin: 26px 0 0 !important; font-size: 14px !important; color: var(--dim) !important; }
 
 .command {
   display: flex; align-items: center; gap: 10px;
@@ -167,12 +167,39 @@ h2 span { color: var(--muted); }
 
 .install .command { margin: 0 0 24px; }
 
-/* Screenshots inside chapters: phones and no JavaScript. */
-.shot { margin: 28px 0 0; }
-.shot img, .frame img {
+/* A terminal window: the screenshots carry no chrome of their own, so every
+   one gets the same title bar here. Inside chapters on phones and without
+   JavaScript; cloned into the stage on desktop. */
+.shot {
+  --bar: 34px;
+  position: relative;
+  margin: 28px 0 0;
+  padding-top: var(--bar);
+  overflow: hidden;
   border-radius: 12px;
-  box-shadow: 0 40px 80px -36px rgba(0, 0, 0, 0.95), 0 0 0 1px rgba(255, 255, 255, 0.08);
+  background: #1a1b26;
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.09),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05),
+    0 50px 90px -40px rgba(0, 0, 0, 0.95);
 }
+.shot::before {
+  content: attr(data-title);
+  position: absolute; inset: 0 0 auto; z-index: 1;
+  height: var(--bar);
+  display: flex; align-items: center; justify-content: center;
+  padding: 0 64px;
+  font: 500 11.5px/1 "Geist Mono", ui-monospace, monospace;
+  color: #6b7089;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  background:
+    radial-gradient(circle 5.5px at 18px 50%, #ff5f57 98%, transparent) no-repeat,
+    radial-gradient(circle 5.5px at 37px 50%, #febc2e 98%, transparent) no-repeat,
+    radial-gradient(circle 5.5px at 56px 50%, #28c840 98%, transparent) no-repeat,
+    #16171f;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+.shot img { width: 100%; }
 
 /* ----------------------------------------------------- desktop: the stage */
 @media (min-width: 1024px) {
@@ -184,6 +211,8 @@ h2 span { color: var(--muted); }
   .staged .rail { grid-column: 1; grid-row: 1; }
   .staged .chapter { min-height: 86vh; display: flex; align-items: center; padding: 0; }
   .staged .cover { min-height: calc(100dvh - 64px); }
+  /* The footer sits in the left column, so the window stays put to the end. */
+  .staged .footer { margin-top: 0; flex-direction: column; gap: 10px; }
   .staged .chapter .shot { display: none; }
   .staged .chapter-text {
     opacity: 0.16;
@@ -192,62 +221,66 @@ h2 span { color: var(--muted); }
   }
   .staged .chapter.active .chapter-text { opacity: 1; transform: none; }
 
+  /* The stage takes the screen's height and keeps the window at its middle,
+     where the chapter being read is. */
   .staged .stage {
-    display: block;
+    display: flex; flex-direction: column; justify-content: center;
     grid-column: 2; grid-row: 1;
     align-self: start;
-    position: sticky;
-    top: calc(50vh - var(--stage-h) / 2 + 4px);
-  }
-  /* Behind the window: a dot grid, lit by the act's tint. */
-  .stage::before {
-    content: "";
-    position: absolute; inset: -12% -8% -18%;
-    background-image: radial-gradient(rgba(255, 255, 255, 0.09) 1px, transparent 1.2px);
-    background-size: 22px 22px;
-    mask-image: radial-gradient(ellipse at 50% 45%, #000 20%, transparent 70%);
-    -webkit-mask-image: radial-gradient(ellipse at 50% 45%, #000 20%, transparent 70%);
-    pointer-events: none;
+    position: sticky; top: 0;
+    height: 100vh; height: 100dvh;
+    padding-top: 32px;
   }
   .stage::after {
     content: "";
-    position: absolute; inset: 0 6% 10%;
-    background: radial-gradient(ellipse at 50% 50%, color-mix(in srgb, var(--tint) 22%, transparent), transparent 65%);
-    filter: blur(40px);
+    position: absolute; inset: 22% 4% 26%;
+    background: radial-gradient(ellipse at 50% 50%, color-mix(in srgb, var(--tint) 16%, transparent), transparent 68%);
+    filter: blur(48px);
     pointer-events: none;
     z-index: -1;
   }
-  .window { position: relative; height: var(--stage-h); perspective: 1600px; }
-  .frames { position: absolute; inset: 0; transform-style: preserve-3d; }
+  .window { position: relative; }
+  /* Every window has the size of a full Neovim screenshot, whatever it shows. */
+  .frames { position: relative; }
+  .frames::before { content: ""; display: block; padding-top: calc(34px + 66.39%); }
   .frame {
     position: absolute; inset: 0; margin: 0;
-    display: flex; align-items: center; justify-content: center;
+    transform-origin: 50% 0;
     will-change: transform, opacity;
-    transition: transform 0.85s var(--ease), opacity 0.6s var(--ease), filter 0.6s var(--ease);
+    transition: transform 0.7s var(--ease), opacity 0.5s var(--ease), filter 0.6s var(--ease);
   }
-  .frame img { max-width: 100%; max-height: 100%; width: auto; height: auto; }
+  /* Same scale for every screenshot (width set by main.js): narrower output
+     leaves the terminal's empty space on the right, like a real one. */
+  .frame img { max-width: none; transform: translateY(0); transition: transform 0s linear 0.6s; }
+  /* Output taller than the window scrolls through once, top to bottom. */
+  .frame[data-state="active"] img {
+    transform: translateY(var(--pan, 0px));
+    transition: transform var(--pan-time, 0s) cubic-bezier(0.45, 0, 0.3, 1) 1.1s;
+  }
 
-  /* One feature at a time: the next one slides in from the right. */
-  .frame[data-state="next"]   { opacity: 0; transform: translate3d(16%, 0, 0) rotateY(-10deg) scale(0.94); }
+  /* One feature at a time: the next one comes in from the right. */
+  .frame[data-state="next"]   { opacity: 0; transform: translate3d(5%, 0, 0) scale(0.97); }
   .frame[data-state="active"] { opacity: 1; transform: none; z-index: 3; }
-  .frame[data-state="prev"]   { opacity: 0; transform: translate3d(-10%, 0, -80px) scale(0.92); filter: blur(3px); }
+  .frame[data-state="prev"]   { opacity: 0; transform: translate3d(-4%, 0, 0) scale(0.97); }
 
-  /* The cover: three windows fanned out, which collapse into the first feature. */
-  .frame[data-state="deck"] { opacity: 1; }
-  .frame[data-deck="front"] { z-index: 3; transform: translate3d(-7%, 9%, 0) rotateY(-9deg) scale(0.82); }
-  .frame[data-deck="mid"]   { z-index: 2; opacity: 0.7; filter: brightness(0.75); transform: translate3d(8%, -4%, -90px) rotateY(-12deg) scale(0.78); }
-  .frame[data-deck="back"]  { z-index: 1; opacity: 0.4; filter: brightness(0.6); transform: translate3d(21%, -16%, -180px) rotateY(-15deg) scale(0.72); }
+  /* The cover: a stack of windows that the first feature comes out of. */
+  .frame[data-state="deck"]  { opacity: 1; }
+  .frame[data-deck="front"]  { z-index: 3; }
+  .frame[data-deck="mid"]    { z-index: 2; filter: brightness(0.5); transform: translate3d(0, -26px, 0) scale(0.94); }
+  .frame[data-deck="back"]   { z-index: 1; filter: brightness(0.3); transform: translate3d(0, -50px, 0) scale(0.88); }
 
   /* The dock: act, feature, progress by act. */
   .dock {
     position: relative; z-index: 4;
-    display: grid; grid-template-columns: minmax(150px, auto) minmax(0, 1fr) auto;
-    align-items: center; gap: 22px;
-    margin-top: 22px;
+    display: grid; grid-template-columns: 190px minmax(0, 1fr) auto;
+    align-items: center; gap: 24px;
+    margin-top: 24px;
   }
-  .dock-label { display: flex; flex-direction: column; gap: 4px; margin: 0; }
-  .dock-act { font: 600 11px/1 "Geist Mono", monospace; letter-spacing: 0.14em; text-transform: uppercase; color: var(--tint); }
-  .dock-title { font-size: 14px; font-weight: 550; color: var(--text); }
+  .dock-label { display: flex; align-items: baseline; gap: 12px; margin: 0; white-space: nowrap; }
+  .dock-count { font: 500 12px/1 "Geist Mono", monospace; color: var(--dim); font-variant-numeric: tabular-nums; }
+  .dock-count b { font-weight: 500; color: var(--tint); }
+  .dock-title { font-size: 14px; font-weight: 550; color: var(--text); overflow: hidden; text-overflow: ellipsis; }
+  .dock-label.idle .dock-title { color: var(--muted); font-weight: 450; }
   .dock-bar { display: flex; align-items: center; gap: 4px; }
   .dock-bar button {
     flex: 1; height: 18px; padding: 0; border: 0; background: none; cursor: pointer;
@@ -282,7 +315,7 @@ h2 span { color: var(--muted); }
   color: var(--dim); font-size: 13.5px;
   position: relative;
 }
-.footer::before { content: ""; position: absolute; top: 0; left: 32px; right: 32px; border-top: 1px solid var(--line); }
+.footer::before { content: ""; position: absolute; top: 0; left: 0; right: 0; border-top: 1px solid var(--line); }
 .footer p { margin: 0; }
 .footer-links { display: flex; gap: 20px; flex-wrap: wrap; }
 .footer-links a { color: var(--muted); }
@@ -300,7 +333,7 @@ h2 span { color: var(--muted); }
 @keyframes rise { from { opacity: 0; transform: translateY(18px); } }
 @keyframes semi { from { opacity: 0; transform: translateY(-0.35em) scale(0.6); } }
 @media (prefers-reduced-motion: reduce) {
-  .frame { transition: opacity 0.2s !important; transform: none !important; filter: none !important; }
+  .frame, .frame img { transition: opacity 0.2s !important; transform: none !important; filter: none !important; }
   .frame[data-state="deck"]:not([data-deck="front"]) { opacity: 0; }
   .staged .chapter-text { transform: none !important; }
 }
@@ -309,11 +342,9 @@ h2 span { color: var(--muted); }
 @media (max-width: 1023px) {
   .chapter { padding: 64px 0 24px; }
   .cover { padding-top: 56px; }
-  .hint { display: none; }
 }
 @media (max-width: 560px) {
   .wrap { padding: 0 20px; }
-  .footer::before { left: 20px; right: 20px; }
   .nav-link { display: none; }
   .copy { padding: 11px 14px; }
 }

@@ -25,21 +25,37 @@ if (show) {
   const chapters = [...show.querySelectorAll(".chapter")];
   const framesBox = show.querySelector(".frames");
   const bar = show.querySelector(".dock-bar");
-  const actLabel = show.querySelector(".dock-act");
+  const label = show.querySelector(".dock-label");
+  const countLabel = show.querySelector(".dock-count");
   const titleLabel = show.querySelector(".dock-title");
   const [prevButton, nextButton] = show.querySelectorAll(".dock-nav button");
-  const ACTS = { cover: "11 features", organize: "Organize", write: "Write", ship: "Ship", install: "Install" };
+  const total = chapters.length - 1;
+  const pad = (n) => String(n).padStart(2, "0");
 
   // One frame per chapter with a screenshot; the cover (index 0) has none.
+  // A full Neovim screenshot fills the window's width; the others keep the
+  // same scale, so the text is the same size in every frame.
+  const fullWidth = Math.max(...chapters.map((c) => +(c.querySelector(".shot img")?.getAttribute("width") || 0)));
   const frames = chapters.map((chapter) => {
     const shot = chapter.querySelector(".shot");
     if (!shot) return null;
     const frame = shot.cloneNode(true);
-    frame.className = "frame";
-    frame.querySelector("img").loading = "eager";
+    frame.classList.add("frame");
+    const img = frame.querySelector("img");
+    img.loading = "eager";
+    img.style.width = `${(img.getAttribute("width") / fullWidth) * 100}%`;
     framesBox.appendChild(frame);
     return frame;
   });
+
+  // Output taller than the window scrolls by once, at about 120px a second.
+  const setPan = (frame) => {
+    const img = frame.querySelector("img");
+    const room = frame.clientHeight - img.offsetTop;
+    const extra = Math.max(0, img.offsetHeight - room);
+    frame.style.setProperty("--pan", `${-extra}px`);
+    frame.style.setProperty("--pan-time", `${Math.max(1.5, extra / 120)}s`);
+  };
 
   // The cover's fan: the first feature in front, two more behind it.
   const deck = { front: 1, mid: 4, back: 2 };
@@ -73,6 +89,7 @@ if (show) {
         if (place) frame.dataset.deck = place;
       } else {
         frame.dataset.state = i === n ? "active" : i < n ? "prev" : "next";
+        if (i === n) setPan(frame);
       }
     });
     segments.forEach((segment, i) => {
@@ -81,8 +98,9 @@ if (show) {
       segment.classList.toggle("done", i < n);
       segment.setAttribute("aria-current", i === n ? "step" : "false");
     });
-    actLabel.textContent = ACTS[chapter.dataset.act] || "";
-    titleLabel.textContent = chapter.dataset.title;
+    label.classList.toggle("idle", n === 0);
+    countLabel.innerHTML = n === 0 ? "" : `<b>${pad(n)}</b> / ${pad(total)}`;
+    titleLabel.textContent = n === 0 ? "Scroll to start" : chapter.dataset.title;
     prevButton.disabled = n === 0;
     nextButton.disabled = n === chapters.length - 1;
   };
