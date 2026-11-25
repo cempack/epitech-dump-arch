@@ -3,10 +3,10 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>epitech-toolkit · your Epitech setup in one command</title>
-  <meta name="description" content="The school's tools on Arch Linux or Ubuntu, an editor that knows the Epitech coding style, and checks that run before the moulinette. One command to install.">
+  <title>epitech-toolkit · Epitech, set up.</title>
+  <meta name="description" content="Your Epitech setup in one command, on Arch Linux and Ubuntu: epi workspace manager, project scaffolding, live Banana meters and one-key fixes in Neovim & VS Code, and pre-delivery checks.">
   <meta name="color-scheme" content="dark">
-  <meta name="theme-color" content="#0c0d10">
+  <meta name="theme-color" content="#090a0d">
   <link rel="icon" href="/favicon.svg" type="image/svg+xml">
   <link rel="canonical" href="https://epitech.elliotmoreau.fr/">
   <meta property="og:type" content="website">
@@ -16,421 +16,228 @@
   <meta property="og:image" content="https://epitech.elliotmoreau.fr/assets/og.png">
   <meta name="twitter:card" content="summary_large_image">
   <link rel="preload" href="/fonts/Geist-Variable.woff2" as="font" type="font/woff2" crossorigin>
-  <link rel="preload" href="/assets/meters.webp?v=2" as="image" type="image/webp">
+  <link rel="preload" href="/fonts/GeistMono-Variable.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="/assets/epi.webp?v=3" as="image" type="image/webp">
   <link rel="stylesheet" href="/style.css">
 </head>
 <body>
   <header class="nav">
     <div class="wrap nav-inner">
-      <a class="brand" href="/">
-        <img src="/assets/logo.svg" alt="" width="24" height="24">
-        epitech-toolkit
+      <a class="brand" href="/" aria-label="epitech-toolkit home">
+        <img src="/assets/logo.svg" alt="" width="26" height="26">
+        <span>epitech-toolkit</span>
       </a>
-      <nav class="nav-links" aria-label="Sections">
-        <a href="#editor">Editor</a>
-        <a href="#epi">epi</a>
-        <a href="#checks">Checks</a>
-        <a href="#install">Install</a>
-        <a class="gh" href="https://github.com/cempack/epitech-toolkit">GitHub</a>
-      </nav>
+      <a class="gh" href="https://github.com/cempack/epitech-toolkit">
+        <svg class="icon" viewBox="0 0 256 256" aria-hidden="true"><path d="M208.31,75.68A59.78,59.78,0,0,0,202.93,28,8,8,0,0,0,196,24a59.75,59.75,0,0,0-48,24H124A59.75,59.75,0,0,0,76,24a8,8,0,0,0-6.93,4,59.78,59.78,0,0,0-5.38,47.68A58.14,58.14,0,0,0,56,104v8a56.06,56.06,0,0,0,48.44,55.47A39.8,39.8,0,0,0,96,192v8H72a24,24,0,0,1-24-24A40,40,0,0,0,8,136a8,8,0,0,0,0,16,24,24,0,0,1,24,24,40,40,0,0,0,40,40H96v16a8,8,0,0,0,16,0V192a24,24,0,0,1,48,0v40a8,8,0,0,0,16,0V192a39.8,39.8,0,0,0-8.44-24.53A56.06,56.06,0,0,0,216,112v-8A58.14,58.14,0,0,0,208.31,75.68ZM200,112a40,40,0,0,1-40,40H112a40,40,0,0,1-40-40v-8a41.74,41.74,0,0,1,6.9-22.48A8,8,0,0,0,80,73.83a43.81,43.81,0,0,1,.79-33.58,43.88,43.88,0,0,1,32.32,20.06A8,8,0,0,0,119.82,64h32.35a8,8,0,0,0,6.74-3.69,43.87,43.87,0,0,1,32.32-20.06A43.81,43.81,0,0,1,192,73.83a8.09,8.09,0,0,0,1,7.65A41.72,41.72,0,0,1,200,104Z"/></svg>
+        <span>GitHub</span>
+      </a>
     </div>
   </header>
 
   <main>
+    <!-- HERO -->
     <section class="hero wrap">
-      <div class="hero-text">
-        <h1>Your Epitech setup, in one command.</h1>
-        <p class="lede">The school's tools on Arch Linux or Ubuntu, an editor that knows the coding style, and checks that run before the moulinette.</p>
-        <div class="command" data-copy="bash <(curl -fsSL https://raw.githubusercontent.com/cempack/epitech-toolkit/main/install.sh)">
+      <div class="hero-copy">
+        <p class="eyebrow rise"><span class="pulse" aria-hidden="true"></span>Arch Linux · Ubuntu 24.04 &amp; 26.04</p>
+        <h1 class="rise">Epitech,<br>set&nbsp;up<span class="caret" aria-hidden="true"></span></h1>
+        <p class="lead rise">The school's tools, editors that scaffold and fix Banana, and a check before the moulinette. One command.</p>
+        <div class="command rise" data-copy="bash <(curl -fsSL https://raw.githubusercontent.com/cempack/epitech-toolkit/main/install.sh)">
           <code><span class="prompt">$</span> bash &lt;(curl -fsSL https://raw.githubusercontent.com/cempack/epitech-toolkit/main/install.sh)</code>
-          <button class="copy" type="button">Copy</button>
+          <button class="copy" type="button" aria-label="Copy install command"><span class="copy-label">Copy</span></button>
         </div>
-        <p class="small">Updates itself every week. Unofficial, made by a student.</p>
+        <p class="meta rise">Neovim &amp; LazyVim · VS Code · epiclang &amp; Banana · Criterion · CSFML</p>
       </div>
-      <figure class="shot hero-shot">
-        <a class="zoom" href="/assets/meters.webp?v=2"><img src="/assets/meters.webp?v=2" width="2200" height="1499" alt="Neovim on src/parser.c: after the function's signature, 17/20 lines and 4/4 args; nested ifs marked depth 3, 4 and 5 with C-C1; Banana's reports next to the lines; hints asking to name the numbers 4096, 2 and 4."></a>
-        <figcaption>Neovim with epitech.nvim: function length and arguments after each signature, nesting depth, Banana's reports as you save, and hints for what only graders check.</figcaption>
-      </figure>
-    </section>
 
-    <section class="section wrap" id="editor">
-      <h2>An editor that knows the coding style.</h2>
-      <p class="section-lede">epitech.nvim for Neovim (set up with LazyVim) and the same features as a VS Code extension. They format, measure, fix and scaffold the same way.</p>
-
-      <div class="index">
-        <div class="group">
-          <h3>Start a project</h3>
-          <dl>
-            <dt><code>:EpitechNew my_ls</code></dt>
-            <dd>Makefile with <code>tests_run</code> and <code>debug</code>, header and guard, <code>print_error</code>, a Criterion test, <code>.gitignore</code>. Asks which libraries to link: CSFML, ncurses, math.</dd>
-            <dt><code>:EpitechNew libmy.a</code></dt>
-            <dd>The same for a library.</dd>
-            <dt><code>&lt;leader&gt;cN</code></dt>
-            <dd>New file with its Epitech header, added to <code>SRC</code>.</dd>
-            <dt>libmy on demand</dt>
-            <dd>Your Pool's 35 functions. Call <code>my_strdup</code>, accept the fix: it lands in <code>lib/my</code> with what it calls.</dd>
-          </dl>
-        </div>
-        <div class="group">
-          <h3>Write</h3>
-          <dl>
-            <dt>Format on save</dt>
-            <dd>clang-format with the Epitech profile, then what it can't do: preprocessor nesting, the blank line after declarations, wrapped lines indented the way Banana counts.</dd>
-            <dt>Banana, live</dt>
-            <dd>epiclang runs as you save. Major and Fatal show as errors.</dd>
-            <dt>Meters</dt>
-            <dd><code>13/20 lines · 2/4 args</code> per function, nesting depth, functions per file.</dd>
-            <dt>Hints</dt>
-            <dd>What only graders check: magic numbers, functions that could be static, pointers that could be const, <code>size_t</code>, names without a verb.</dd>
-            <dt><code>&lt;leader&gt;cE</code></dt>
-            <dd>Explains the rule under the cursor, with a bad and a good example. <code>:EpitechRules</code> lists all 42.</dd>
-          </dl>
-        </div>
-        <div class="group">
-          <h3>Around the code</h3>
-          <dl>
-            <dt>Makefiles</dt>
-            <dd>Header, 80 columns, trailing spaces, with fixes.</dd>
-            <dt>clangd, fixed</dt>
-            <dd>Completion adds <code>&lt;stdlib.h&gt;</code>, not <code>&lt;malloc.h&gt;</code>, and finds <code>include/</code> from the Makefile.</dd>
-            <dt>Snippets</dt>
-            <dd><code>main</code>, <code>fn</code>, <code>sfn</code>, <code>tdef</code>, <code>sw</code>, <code>fori</code>… already in the style.</dd>
-            <dt>Several projects per repo</dt>
-            <dd>A <code>bootstrap/</code> with its own Makefile is its own project.</dd>
-          </dl>
-        </div>
-        <div class="group">
-          <h3>Restructure</h3>
-          <dl>
-            <dt>Extract a function</dt>
-            <dd>Select statements: they become a <code>static</code> function, variables passed by value or pointer as needed.</dd>
-            <dt><code>:EpitechMoveTo file.c</code></dt>
-            <dd>Moves functions to a new file with the helpers only they use. <code>SRC</code> and the header follow.</dd>
-            <dt><code>:EpitechSyncHeader</code></dt>
-            <dd>Rewrites the header's prototypes from your <code>.c</code> files.</dd>
-          </dl>
-        </div>
-        <div class="group">
-          <h3>Build and test</h3>
-          <dl>
-            <dt><code>&lt;leader&gt;cM</code></dt>
-            <dd><code>make</code>, with every error, warning and Banana report in the quickfix list.</dd>
-            <dt><code>&lt;leader&gt;cT</code></dt>
-            <dd>Criterion tests: each failed assert at its line, and coverage in the gutter.</dd>
-          </dl>
-        </div>
-        <div class="group">
-          <h3>Deliver</h3>
-          <dl>
-            <dt><code>&lt;leader&gt;cB</code></dt>
-            <dd>Checks the whole project: Banana on every file, the hints, the Makefile, tracked build products.</dd>
-            <dt><code>:EpitechHooks</code></dt>
-            <dd>A pre-push hook: <code>git push</code> stops while a Major is left.</dd>
-            <dt><code>:EpitechLazygit</code></dt>
-            <dd>A Banana check on <code>B</code> in lazygit.</dd>
-          </dl>
-        </div>
-      </div>
-    </section>
-
-    <section class="section wrap fixes-section" aria-labelledby="fixes-title">
-      <h2 id="fixes-title">Most violations fix in one key.</h2>
-      <p class="section-lede"><code>&lt;leader&gt;ca</code> in Neovim, <code>Ctrl+.</code> in VS Code. A fix is only offered when it keeps what the program does. These are the plugin's own test cases.</p>
-
-      <div class="fixes" data-tabs>
-        <div class="fix-list" role="tablist" aria-label="Fixes">
-          <button role="tab" type="button" id="tab-switch" aria-controls="fix-switch" aria-selected="true">Convert to switch <span>C-C1</span></button>
-          <button role="tab" type="button" id="tab-stmt" aria-controls="fix-stmt" aria-selected="false">One statement per line <span>C-L1</span></button>
-          <button role="tab" type="button" id="tab-extract" aria-controls="fix-extract" aria-selected="false">Extract a function <span>C-F4</span></button>
-          <button role="tab" type="button" id="tab-pointer" aria-controls="fix-pointer" aria-selected="false">Pass by pointer <span>C-F7</span></button>
-          <button role="tab" type="button" id="tab-macro" aria-controls="fix-macro" aria-selected="false">Name a magic number <span>C-G9</span></button>
-          <button role="tab" type="button" id="tab-decl" aria-controls="fix-decl" aria-selected="false">Declarations first <span>C-L5</span></button>
-          <button role="tab" type="button" id="tab-void" aria-controls="fix-void" aria-selected="false">Add void <span>C-F6</span></button>
-        </div>
-
-        <div class="fix-panel" role="tabpanel" id="fix-switch" aria-labelledby="tab-switch">
-          <h3 class="fix-title">Convert to switch <span>C-C1</span></h3>
-          <div class="diff">
-            <pre class="before"><code>int parse_flag(char flag, int *options)
-{
-    if (flag == 'l') {
-        options[0] = 1;
-    } else if (flag == 'a') {
-        options[1] = 1;
-    } else if (flag == 'R') {
-        options[2] = 1;
-    } else {
-        return 84;
-    }
-    return 0;
-}</code></pre>
-            <pre class="after"><code>int parse_flag(char flag, int *options)
-{
-    switch (flag) {
-        case 'l':
-            options[0] = 1;
-            break;
-        case 'a':
-            options[1] = 1;
-            break;
-        case 'R':
-            options[2] = 1;
-            break;
-        default:
-            return 84;
-    }
-    return 0;
-}</code></pre>
-          </div>
-        </div>
-
-        <div class="fix-panel" role="tabpanel" id="fix-stmt" aria-labelledby="tab-stmt">
-          <h3 class="fix-title">One statement per line <span>C-L1</span></h3>
-          <div class="diff">
-            <pre class="before"><code>int open_file(char const *path)
-{
-    int fd;
-
-    if ((fd = open(path, O_RDONLY)) == -1) {
-        return 84;
-    }
-    return fd;
-}</code></pre>
-            <pre class="after"><code>int open_file(char const *path)
-{
-    int fd;
-
-    fd = open(path, O_RDONLY);
-    if (fd == -1) {
-        return 84;
-    }
-    return fd;
-}</code></pre>
-          </div>
-          <p class="fix-note">Also <code>str[i++] = c;</code>, <code>a = b = 0;</code> and <code>a &amp;&amp; f();</code>.</p>
-        </div>
-
-        <div class="fix-panel" role="tabpanel" id="fix-extract" aria-labelledby="tab-extract">
-          <h3 class="fix-title">Extract a function <span>C-F4</span></h3>
-          <div class="diff">
-            <pre class="before"><code>int count_text(char const *str, char separator)
-{
-    stats_t stats = {0, 0};
-    int in_word = 0;
-    int i = 0;
-
-    while (str[i] != '\0') {
-        if (str[i] != separator &amp;&amp; !in_word) {
-            stats.words++;
-            in_word = 1;
-        }
-        if (str[i] == separator)
-            in_word = 0;
-        if (str[i] == '\n')
-            stats.lines++;
-        i++;
-    }
-    write(1, &amp;stats, sizeof(stats));
-    return stats.words;
-}</code></pre>
-            <pre class="after"><code>static void count_words(char const *str, char separator, stats_t *stats)
-{
-    int in_word = 0;
-    int i = 0;
-
-    while (str[i] != '\0') {
-        if (str[i] != separator &amp;&amp; !in_word) {
-            stats-&gt;words++;
-            in_word = 1;
-        }
-        if (str[i] == separator)
-            in_word = 0;
-        if (str[i] == '\n')
-            stats-&gt;lines++;
-        i++;
-    }
-}
-
-int count_text(char const *str, char separator)
-{
-    stats_t stats = {0, 0};
-
-    count_words(str, separator, &amp;stats);
-    write(1, &amp;stats, sizeof(stats));
-    return stats.words;
-}</code></pre>
-          </div>
-          <p class="fix-note"><code>in_word</code> and <code>i</code> move in, <code>stats</code> is passed by pointer because the loop changes it. clangd's own extract only works on C++.</p>
-        </div>
-
-        <div class="fix-panel" role="tabpanel" id="fix-pointer" aria-labelledby="tab-pointer">
-          <h3 class="fix-title">Pass by pointer <span>C-F7</span></h3>
-          <div class="diff">
-            <pre class="before"><code>int sum_point(point_t point)
-{
-    return point.x + point.y;
-}
-
-total = sum_point(origin);</code></pre>
-            <pre class="after"><code>int sum_point(point_t const *point)
-{
-    return point-&gt;x + point-&gt;y;
-}
-
-total = sum_point(&amp;origin);</code></pre>
-          </div>
-          <p class="fix-note">The prototype in the header and every call follow. Refused when the function changes its copy.</p>
-        </div>
-
-        <div class="fix-panel" role="tabpanel" id="fix-macro" aria-labelledby="tab-macro">
-          <h3 class="fix-title">Name a magic number <span>C-G9</span></h3>
-          <div class="diff">
-            <pre class="before"><code>char buf[4096];</code></pre>
-            <pre class="after"><code>/* include/my_ls.h */
-#define BUFFER_SIZE 4096
-
-/* src/read.c */
-char buf[BUFFER_SIZE];</code></pre>
-          </div>
-          <p class="fix-note">Obvious numbers stay quiet: <code>ac != 2</code>, <code>nb % 10</code>, <code>return 84</code>.</p>
-        </div>
-
-        <div class="fix-panel" role="tabpanel" id="fix-decl" aria-labelledby="tab-decl">
-          <h3 class="fix-title">Declarations first <span>C-L5</span></h3>
-          <div class="diff">
-            <pre class="before"><code>int sum(int n)
-{
-    int total = 0;
-
-    total = n * 2;
-    int extra = total + 1;
-    return total + extra;
-}</code></pre>
-            <pre class="after"><code>int sum(int n)
-{
-    int total = 0;
-    int extra;
-
-    total = n * 2;
-    extra = total + 1;
-    return total + extra;
-}</code></pre>
-          </div>
-        </div>
-
-        <div class="fix-panel" role="tabpanel" id="fix-void" aria-labelledby="tab-void">
-          <h3 class="fix-title">Add void <span>C-F6</span></h3>
-          <div class="diff">
-            <pre class="before"><code>int print_help()
-{
-    return 0;
-}</code></pre>
-            <pre class="after"><code>int print_help(void)
-{
-    return 0;
-}</code></pre>
-          </div>
-          <p class="fix-note"><code>:EpitechFixAll C-F6</code> does it in every file. Also: make const, add static, move a type or prototype to the header.</p>
-        </div>
-      </div>
-    </section>
-
-    <section class="section wrap" aria-labelledby="tests-title">
-      <h2 id="tests-title">Tests where you write.</h2>
-      <p class="section-lede"><code>&lt;leader&gt;cT</code> builds and runs your Criterion tests. A failed assert opens at its line, and the gutter shows which lines the tests ran, in green, and which they missed, in red.</p>
-      <figure class="shot">
-        <a class="zoom" href="/assets/tests.webp?v=2"><img src="/assets/tests.webp?v=2" width="2200" height="1499" loading="lazy" alt="Neovim on src/load.c after running the tests: green bars next to the lines the tests ran, a red bar on return -1, and the failed assert get_load_level overloaded listed below."></a>
-      </figure>
-    </section>
-
-    <section class="section wrap" id="epi">
-      <h2>Your Epitech folder, sorted.</h2>
-      <p class="section-lede">epi clones each project into its module, names it from its subject (<code>myls</code> becomes <code>my_ls</code>) and files the PDFs next to it.</p>
-      <figure class="shot">
-        <a class="zoom" href="/assets/epi.webp?v=2"><img src="/assets/epi.webp?v=2" width="2200" height="1499" loading="lazy" alt="The epi dashboard: projects grouped by module, my_sudo selected with its git status, an untracked bootstrap folder, and its three subjects ready to open."></a>
-      </figure>
-      <dl class="commands">
-        <div><dt><code>epi</code></dt><dd>Every project with its git state, bootstrap and subjects. <kbd>enter</kbd> goes into it, <kbd>o</kbd> opens a subject, <kbd>p</kbd> runs the pre-delivery check.</dd></div>
-        <div><dt><code>epi new</code></dt><dd>Lists your Epitech repositories not cloned yet, clones one, files its subjects from <code>~/Downloads</code>.</dd></div>
-        <div><dt><code>epi cd radar</code></dt><dd>Jumps into a project, a module or a bootstrap (<code>epi cd sudo/b</code>).</dd></div>
-        <div><dt><code>epi open sudo kickoff</code></dt><dd>Opens a subject: main, bootstrap, kick-off, roadmap, bonus…</dd></div>
-        <div><dt><code>epi bootstrap</code></dt><dd>Sets up <code>bootstrap/</code> and keeps its binaries out of git.</dd></div>
-        <div><dt><code>epi allowed --save</code></dt><dd>Reads the authorized functions from the subject, for <code>epitech-predeliver</code>.</dd></div>
-        <div><dt><code>epi search fork</code></dt><dd>Searches the text of every subject you have.</dd></div>
-        <div><dt><code>epi sync</code></dt><dd>Fetches every repository and shows what's behind or unpushed.</dd></div>
-        <div><dt><code>epi doctor</code></dt><dd>Misplaced projects, unsaved work, clutter, updated subjects waiting in Downloads.</dd></div>
-      </dl>
-    </section>
-
-    <section class="section wrap" id="checks">
-      <h2>Know before the moulinette.</h2>
-      <p class="section-lede">Two commands for the hour before you push.</p>
-      <div class="check">
-        <figure class="shot">
-          <a class="zoom" href="/assets/predeliver.webp?v=2"><img src="/assets/predeliver.webp?v=2" width="1500" height="1517" loading="lazy" alt="epitech-predeliver on my_ls: an untracked source file, a tracked .o, a function declared in a .c, printf not authorized; the build checks and the tests pass with 88.9% line coverage."></a>
+      <div class="hero-deck" aria-hidden="true">
+        <div class="deck-glow"></div>
+        <figure class="deck-card deck-back">
+          <img src="/assets/scaffold.webp?v=3" width="2200" height="1512" alt="">
         </figure>
-        <div>
-          <h3><code>epitech-predeliver</code></h3>
-          <p>Clones what you committed into a temporary folder and checks it the way the moulinette will.</p>
-          <p>Files you never added, tracked build products, unpushed commits. A fresh <code>make</code>, no relink, <code>clean</code>, <code>fclean</code> and <code>re</code>. Banana on every file. Every function the binary calls, against the subject's list. Tests, with coverage.</p>
-          <p>Exits 1 when something blocks the delivery, so it fits in a git hook.</p>
-        </div>
-      </div>
-      <div class="check">
-        <figure class="shot">
-          <a class="zoom" href="/assets/mem.webp?v=2"><img src="/assets/mem.webp?v=2" width="1500" height="1111" loading="lazy" alt="epitech-mem on my_cat: a write one byte past a malloc of strlen, the leak, and a file descriptor left open, each with the source line."></a>
+        <figure class="deck-card deck-mid">
+          <img src="/assets/meters.webp?v=3" width="2200" height="1499" alt="">
         </figure>
-        <div>
-          <h3><code>epitech-mem</code></h3>
-          <p>Valgrind's report in plain words: each error, leak and file left open, at the line of your code that caused it, with the line where the block was allocated.</p>
-          <p><code>--asan</code> rebuilds with AddressSanitizer instead, which also catches overflows on the stack.</p>
+        <figure class="deck-card deck-front">
+          <img src="/assets/epi.webp?v=3" width="2200" height="1499" alt="">
+        </figure>
+      </div>
+
+      <a class="scroll-cue" href="#story">
+        <span>Scroll through all 11 features</span>
+        <span class="arrow" aria-hidden="true">↓</span>
+      </a>
+    </section>
+
+    <!-- SCROLL STORY -->
+    <section class="story wrap" id="story" data-tint="blue">
+      <div class="stage">
+        <div class="stage-aura" aria-hidden="true"></div>
+        <div class="stage-viewport" aria-hidden="true">
+          <div class="stage-frame"></div>
+        </div>
+        <div class="stage-dock">
+          <span class="stage-count">01 / 11</span>
+          <div class="stage-dots"></div>
+          <div class="stage-arrows">
+            <button class="dock-btn" type="button" data-nav="prev" aria-label="Previous feature">←</button>
+            <button class="dock-btn" type="button" data-nav="next" aria-label="Next feature">→</button>
+          </div>
         </div>
       </div>
+
+      <ol class="steps">
+        <li class="step" data-tint="blue">
+          <div class="step-text">
+            <span class="kicker">01 · Workspace</span>
+            <h2>Every project in its place.</h2>
+            <p>Clones your repos into the right module, names them from the subject, and files every PDF next to it.</p>
+            <code class="chip">epi</code>
+          </div>
+          <figure class="shot">
+            <img src="/assets/epi.webp?v=3" width="2200" height="1499" loading="lazy" alt="The epi dashboard: projects by module, my_sudo selected with its git status, its bootstrap folder and three subjects to open.">
+          </figure>
+        </li>
+
+        <li class="step" data-tint="green">
+          <div class="step-text">
+            <span class="kicker">02 · Project skeleton</span>
+            <h2>Zero-chore C scaffolding.</h2>
+            <p>Makefile, header and guard, error helper, Criterion test and <code>.gitignore</code>, from one command.</p>
+            <code class="chip">:EpitechNew my_ls</code>
+          </div>
+          <figure class="shot">
+            <img src="/assets/scaffold.webp?v=3" width="2200" height="1512" loading="lazy" alt="Neovim after :EpitechNew my_ls: the generated tree (include, lib/my, src, tests) next to the Makefile.">
+          </figure>
+        </li>
+
+        <li class="step" data-tint="purple">
+          <div class="step-text">
+            <span class="kicker">03 · Pool libmy</span>
+            <h2>Pull libmy on demand.</h2>
+            <p>Call any of your 35 Pool functions: it lands in <code>lib/my</code> with what it calls, and <code>my.h</code> and the Makefile follow.</p>
+            <code class="chip">&lt;leader&gt;ca</code>
+          </div>
+          <figure class="shot">
+            <img src="/assets/libmy.webp?v=3" width="2200" height="1512" loading="lazy" alt="After the fix: entry.c calls my_strdup, my.h is included, and lib/my now holds my_strdup.c and my_strcpy.c.">
+          </figure>
+        </li>
+
+        <li class="step" data-tint="amber">
+          <div class="step-text">
+            <span class="kicker">04 · Live meters</span>
+            <h2>See limits before Banana.</h2>
+            <p>Lines, arguments and nesting depth counted as you type, Banana's reports on save, hints for what only graders check.</p>
+            <code class="chip">epitech.nvim · VS Code</code>
+          </div>
+          <figure class="shot">
+            <img src="/assets/meters.webp?v=3" width="2200" height="1499" loading="lazy" alt="parse_args at 17/20 lines and 4/4 args, nested ifs marked depth 3 to 5 with Banana's reports, hints on magic numbers.">
+          </figure>
+        </li>
+
+        <li class="step" data-tint="cyan">
+          <div class="step-text">
+            <span class="kicker">05 · Rule explainer</span>
+            <h2>Every rule, explained.</h2>
+            <p>The rule under the cursor: how severe, who checks it, a bad and a good example. All 42 in <code>:EpitechRules</code>.</p>
+            <code class="chip">&lt;leader&gt;cE</code>
+          </div>
+          <figure class="shot">
+            <img src="/assets/explain.webp?v=3" width="2200" height="1499" loading="lazy" alt="The explanation of C-C1 under the cursor: the rule, what was measured, a bad if chain and a good switch.">
+          </figure>
+        </li>
+
+        <li class="step" data-tint="purple">
+          <div class="step-text">
+            <span class="kicker">06 · One-key fixes</span>
+            <h2>Fix Banana in one key.</h2>
+            <p>Convert to switch, split statements, pass by pointer, name magic numbers, extract a function. Only when the code still does the same.</p>
+            <code class="chip">&lt;leader&gt;ca · Ctrl+.</code>
+          </div>
+          <figure class="shot">
+            <img src="/assets/fixes.webp?v=3" width="2200" height="1499" loading="lazy" alt="A diff of the Convert to switch fix: the four-branch if chain on the left, the switch it became on the right.">
+          </figure>
+        </li>
+
+        <li class="step" data-tint="cyan">
+          <div class="step-text">
+            <span class="kicker">07 · Tests &amp; coverage</span>
+            <h2>Criterion right in your editor.</h2>
+            <p>Failed asserts at their line, and coverage in the gutter: green for lines the tests ran, red for the ones they missed.</p>
+            <code class="chip">&lt;leader&gt;cT</code>
+          </div>
+          <figure class="shot">
+            <img src="/assets/tests.webp?v=3" width="2200" height="1499" loading="lazy" alt="src/load.c after the tests: green coverage bars, a red bar on return -1, and the failed assert listed below.">
+          </figure>
+        </li>
+
+        <li class="step" data-tint="amber">
+          <div class="step-text">
+            <span class="kicker">08 · Project check</span>
+            <h2>The whole project at once.</h2>
+            <p>Banana on every file, the hints, the Makefile and tracked build products, sorted by severity. Add a pre-push hook and it guards <code>git push</code>.</p>
+            <code class="chip">&lt;leader&gt;cB</code>
+          </div>
+          <figure class="shot">
+            <img src="/assets/check.webp?v=3" width="2200" height="1499" loading="lazy" alt="The project check: Majors and hints from count.c, flags.c and parser.c, each at its line.">
+          </figure>
+        </li>
+
+        <li class="step" data-tint="green">
+          <div class="step-text">
+            <span class="kicker">09 · Pre-delivery</span>
+            <h2>Know before the moulinette.</h2>
+            <p>A fresh clone of what you committed: build, relink, Banana, authorized functions, tests and coverage.</p>
+            <code class="chip">epitech-predeliver</code>
+          </div>
+          <figure class="shot shot-tall">
+            <img src="/assets/predeliver.webp?v=3" width="1500" height="1517" loading="lazy" alt="epitech-predeliver on my_ls: an untracked source file, a tracked .o, a prototype in a .c, printf not authorized; tests pass at 88.9% coverage.">
+          </figure>
+        </li>
+
+        <li class="step" data-tint="rose">
+          <div class="step-text">
+            <span class="kicker">10 · Memory</span>
+            <h2>Leaks, in plain words.</h2>
+            <p>Valgrind's errors, leaks and open files, at the line of your code that caused them. Or rebuild with <code>--asan</code>.</p>
+            <code class="chip">epitech-mem ./my_cat</code>
+          </div>
+          <figure class="shot">
+            <img src="/assets/mem.webp?v=3" width="1500" height="1111" loading="lazy" alt="epitech-mem: a write one byte past a malloc, the leak, and a file left open, each with its source line.">
+          </figure>
+        </li>
+
+        <li class="step" data-tint="green">
+          <div class="step-text">
+            <span class="kicker">11 · Self-check</span>
+            <h2>Proof that everything works.</h2>
+            <p>Compiles a real Criterion test and a CSFML program, checks Banana and the editors, and prints the exact fix.</p>
+            <code class="chip">epitech-doctor</code>
+          </div>
+          <figure class="shot shot-tall">
+            <img src="/assets/doctor.webp?v=3" width="1500" height="2153" loading="lazy" alt="epitech-doctor: every check passes, from compilers and Criterion to Neovim, VS Code, epi and the weekly timer.">
+          </figure>
+        </li>
+      </ol>
     </section>
 
-    <section class="section wrap" aria-labelledby="installed-title">
-      <h2 id="installed-title">What it installs.</h2>
-      <p class="section-lede">The same packages as the school's <code>dump.sh</code>, from pacman and the AUR on Arch, from Epitech's own PPA on Ubuntu.</p>
-      <div class="installs">
-        <div><h3>School</h3><p>epiclang and Banana, <code>banana-check-repo</code>, Criterion, CSFML, tcsh, Teams</p></div>
-        <div><h3>Editors</h3><p>Neovim with LazyVim and epitech.nvim, the VS Code extension, the Epitech Vim and Emacs configs</p></div>
-        <div><h3>Development</h3><p>gcc, clang 21, gdb, valgrind, gcovr, lazygit, gh, ripgrep, fd, mbake</p></div>
-        <div><h3>Its own commands</h3><p><code>epi</code>, <code>epitech-predeliver</code>, <code>epitech-mem</code>, <code>epitech-doctor</code>, <code>epitech-upgrade</code></p></div>
+    <!-- CLOSING CTA -->
+    <section class="end wrap">
+      <h2>One command.<br><span>Updates itself every week.</span></h2>
+      <div class="command" data-copy="bash <(curl -fsSL https://raw.githubusercontent.com/cempack/epitech-toolkit/main/install.sh)">
+        <code><span class="prompt">$</span> bash &lt;(curl -fsSL https://raw.githubusercontent.com/cempack/epitech-toolkit/main/install.sh)</code>
+        <button class="copy" type="button" aria-label="Copy install command"><span class="copy-label">Copy</span></button>
       </div>
-    </section>
-
-    <section class="section wrap install" id="install">
-      <div class="install-text">
-        <h2>Install.</h2>
-        <ol class="steps">
-          <li>
-            <p>Run this as your user. It asks for sudo when it needs it.</p>
-            <div class="command" data-copy="bash <(curl -fsSL https://raw.githubusercontent.com/cempack/epitech-toolkit/main/install.sh)">
-              <code><span class="prompt">$</span> bash &lt;(curl -fsSL https://raw.githubusercontent.com/cempack/epitech-toolkit/main/install.sh)</code>
-              <button class="copy" type="button">Copy</button>
-            </div>
-          </li>
-          <li><p>Open a new terminal and run <code>epitech-doctor</code>. It compiles a real Criterion test and a CSFML program, and gives the command that fixes anything missing.</p></li>
-          <li><p>That's it. A weekly timer keeps epiclang, Banana, the plugins and the commands current. <code>epitech-upgrade</code> does it now.</p></li>
-        </ol>
-        <p class="small">Arch Linux (Omarchy, EndeavourOS) and Ubuntu 24.04 or 26.04.</p>
-      </div>
-      <figure class="shot doctor-shot">
-        <a class="zoom" href="/assets/doctor.webp?v=2"><img src="/assets/doctor.webp?v=2" width="1500" height="2153" loading="lazy" alt="epitech-doctor: every check passes, from compilers and Criterion to Neovim, VS Code, epi and the weekly update timer."></a>
-      </figure>
+      <p class="meta">Arch Linux &amp; Ubuntu 24.04 / 26.04 · run <code>epitech-doctor</code> after installing</p>
     </section>
   </main>
 
   <footer class="footer wrap">
-    <div class="footer-inner">
-      <p>Unofficial, not affiliated with Epitech. MIT license.</p>
-      <p class="footer-links">
-        <a href="https://github.com/cempack/epitech-toolkit">epitech-toolkit</a>
-        <a href="https://github.com/cempack/epitech.nvim">epitech.nvim</a>
-        <a href="https://github.com/cempack/epi">epi</a>
-        <a href="https://elliotmoreau.fr">Elliot Moreau</a>
-      </p>
-    </div>
+    <span>Unofficial, not affiliated with Epitech. MIT license.</span>
+    <span class="links">
+      <a href="https://github.com/cempack/epitech-toolkit">epitech-toolkit</a>
+      <a href="https://github.com/cempack/epitech.nvim">epitech.nvim</a>
+      <a href="https://github.com/cempack/epi">epi</a>
+      <a href="https://elliotmoreau.fr">Elliot Moreau</a>
+    </span>
   </footer>
 
   <script src="/main.js" defer></script>
