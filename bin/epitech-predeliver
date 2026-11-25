@@ -392,6 +392,12 @@ else
     fi
     if command -v gcovr >/dev/null 2>&1 && [ -n "$(find . -name '*.gcda' -print -quit)" ]; then
         coverage=$(gcovr -r . --exclude 'tests/' -s 2>/dev/null | grep -E '^(lines|branches):')
+        # gcovr reads the data with GCC's gcov, which fails on clang's (CC =
+        # epiclang): then llvm-cov reads it.
+        if [ -z "$coverage" ] && command -v llvm-cov >/dev/null 2>&1; then
+            coverage=$(gcovr -r . --exclude 'tests/' -s --gcov-executable 'llvm-cov gcov' 2>/dev/null \
+                | grep -E '^(lines|branches):')
+        fi
         [ -n "$coverage" ] && printf '%s\n' "$coverage" | while IFS= read -r line; do note "coverage $line"; done
     fi
 fi

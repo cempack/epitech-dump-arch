@@ -179,6 +179,25 @@ expect "no commit: no tests" "$out" "no test ran \(Tested: 0"
 expect "no commit: ignored files" "$out" "no build products or temporary files about to be committed"
 reject "no commit: no clone of nothing" "$out" "no Makefile at the root"
 [ "$status" -eq 1 ] || fail "no commit: exit $status"
+# Coverage of a clang build (CC = epiclang): GCC's gcov can't read clang's
+# data, so gcovr has to go through llvm-cov.
+if command -v clang >/dev/null && command -v gcovr >/dev/null && command -v llvm-cov >/dev/null; then
+    CLANG_PROJECT="${TEST_ROOT}/clang-project"
+    mkdir -p "${CLANG_PROJECT}/src" "${CLANG_PROJECT}/tests"
+    printf 'int is_even(int n)\n{\n    if (n %% 2 == 0) {\n        return 1;\n    }\n    return 0;\n}\n' \
+        > "${CLANG_PROJECT}/src/even.c"
+    printf '#include <stdio.h>\n\nint is_even(int n);\n\nint main(void)\n{\n    printf("[====] Synthesis: Tested: 1 | Passing: 1 | Failing: 0 | Crashing: 0\\n");\n    return is_even(2) != 1;\n}\n' \
+        > "${CLANG_PROJECT}/tests/runner.c"
+    printf 'unit_tests:\n\tclang --coverage -o unit_tests src/even.c tests/runner.c\n\ntests_run: unit_tests\n\t./unit_tests\n\nfclean:\n\trm -f unit_tests *.gcno *.gcda\n\n.PHONY: unit_tests tests_run fclean\n' \
+        > "${CLANG_PROJECT}/Makefile"
+    git -C "$CLANG_PROJECT" init -q
+    git -C "$CLANG_PROJECT" -c user.email=test@example.com -c user.name=test add -A
+    git -C "$CLANG_PROJECT" -c user.email=test@example.com -c user.name=test commit -qm "clang project"
+    out=$("${BIN}/epitech-predeliver" "$CLANG_PROJECT" 2>&1)
+    expect "clang coverage" "$out" "coverage lines: [0-9.]+%"
+else
+    printf '%s\n' "clang coverage test skipped: clang, gcovr or llvm-cov is missing"
+fi
 printf '%s\n' "epitech-predeliver tests passed"
 
 # --------------------------------------------------------------- epitech-mem
