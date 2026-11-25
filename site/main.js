@@ -1,111 +1,107 @@
-// Copy buttons + directional slide-from-right scroll showcase.
-// Without JS, every feature keeps its screenshot inline.
+// Copy buttons, and the window that follows the story.
+// Without JavaScript (and on phones) each chapter shows its own screenshot.
 
 for (const box of document.querySelectorAll("[data-copy]")) {
-  const label = box.querySelector(".copy-label");
+  const button = box.querySelector(".copy");
   let timer;
-  box.querySelector(".copy").addEventListener("click", async () => {
+  button.addEventListener("click", async () => {
     try {
       await navigator.clipboard.writeText(box.dataset.copy);
-      label.textContent = "Copied";
+      button.textContent = "Copied";
     } catch {
       const range = document.createRange();
       range.selectNodeContents(box.querySelector("code"));
       getSelection().removeAllRanges();
       getSelection().addRange(range);
-      label.textContent = "Ctrl+C";
+      button.textContent = "Ctrl+C";
     }
     clearTimeout(timer);
-    timer = setTimeout(() => { label.textContent = "Copy"; }, 2000);
+    timer = setTimeout(() => { button.textContent = "Copy"; }, 2000);
   });
 }
 
-const story = document.querySelector(".story");
-if (story) {
-  const frame = story.querySelector(".stage-frame");
-  const count = story.querySelector(".stage-count");
-  const dotsBox = story.querySelector(".stage-dots");
-  const prevBtn = story.querySelector('[data-nav="prev"]');
-  const nextBtn = story.querySelector('[data-nav="next"]');
-  const steps = [...story.querySelectorAll(".step")];
-  const shots = [];
-  const dots = [];
-  let current = 0;
+const show = document.querySelector(".show");
+if (show) {
+  const chapters = [...show.querySelectorAll(".chapter")];
+  const framesBox = show.querySelector(".frames");
+  const bar = show.querySelector(".dock-bar");
+  const actLabel = show.querySelector(".dock-act");
+  const titleLabel = show.querySelector(".dock-title");
+  const [prevButton, nextButton] = show.querySelectorAll(".dock-nav button");
+  const ACTS = { cover: "11 features", organize: "Organize", write: "Write", ship: "Ship", install: "Install" };
 
-  const jumpTo = (idx) => {
-    const clamped = Math.max(0, Math.min(steps.length - 1, idx));
-    steps[clamped].scrollIntoView({ behavior: "smooth", block: "center" });
-  };
-
-  steps.forEach((step, idx) => {
-    const shot = step.querySelector(".shot").cloneNode(true);
-    for (const img of shot.querySelectorAll("img")) img.loading = "eager";
-    frame.appendChild(shot);
-    shots.push(shot);
-
-    const btn = document.createElement("button");
-    btn.type = "button";
-    btn.className = "stage-dot";
-    btn.setAttribute("aria-label", `Jump to feature ${idx + 1}`);
-    btn.innerHTML = "<span></span>";
-    btn.addEventListener("click", () => jumpTo(idx));
-    dotsBox.appendChild(btn);
-    dots.push(btn);
+  // One frame per chapter with a screenshot; the cover (index 0) has none.
+  const frames = chapters.map((chapter) => {
+    const shot = chapter.querySelector(".shot");
+    if (!shot) return null;
+    const frame = shot.cloneNode(true);
+    frame.className = "frame";
+    frame.querySelector("img").loading = "eager";
+    framesBox.appendChild(frame);
+    return frame;
   });
 
-  story.classList.add("staged");
+  // The cover's fan: the first feature in front, two more behind it.
+  const deck = { front: 1, mid: 4, back: 2 };
 
+  // The progress bar: one segment per feature, a gap between acts.
+  const segments = chapters.map((chapter, i) => {
+    if (i === 0) return null;
+    const button = document.createElement("button");
+    button.type = "button";
+    button.setAttribute("aria-label", chapter.dataset.title);
+    button.innerHTML = "<span></span>";
+    if (i > 1 && chapters[i - 1].dataset.act !== chapter.dataset.act) button.classList.add("act-start");
+    button.addEventListener("click", () => go(i));
+    bar.appendChild(button);
+    return button;
+  });
+
+  let current = -1;
   const activate = (n) => {
+    if (n === current) return;
     current = n;
-    const tint = steps[n].dataset.tint || "green";
-    story.dataset.tint = tint;
-
-    steps.forEach((s, i) => s.classList.toggle("active", i === n));
-    shots.forEach((shot, i) => {
-      const state = i === n ? "active" : i < n ? "prev" : "next";
-      shot.dataset.state = state;
-    });
-    dots.forEach((d, i) => {
-      d.classList.toggle("on", i === n);
-      d.setAttribute("aria-current", i === n ? "true" : "false");
-    });
-
-    const cur = String(n + 1).padStart(2, "0");
-    const tot = String(steps.length).padStart(2, "0");
-    count.textContent = `${cur} / ${tot}`;
-    if (prevBtn) prevBtn.disabled = n === 0;
-    if (nextBtn) nextBtn.disabled = n === steps.length - 1;
-  };
-
-  activate(0);
-
-  if (prevBtn) prevBtn.addEventListener("click", () => jumpTo(current - 1));
-  if (nextBtn) nextBtn.addEventListener("click", () => jumpTo(current + 1));
-
-  // Pick the step closest to the viewport center on scroll (smoother than
-  // single-pixel intersection triggers, especially on fast scrolls).
-  let ticking = false;
-  const syncFromScroll = () => {
-    ticking = false;
-    const mid = window.innerHeight * 0.5;
-    let best = current;
-    let bestDist = Infinity;
-    for (let i = 0; i < steps.length; i++) {
-      const rect = steps[i].getBoundingClientRect();
-      const center = rect.top + rect.height * 0.5;
-      const dist = Math.abs(center - mid);
-      if (dist < bestDist) {
-        bestDist = dist;
-        best = i;
+    const chapter = chapters[n];
+    show.dataset.act = chapter.dataset.act;
+    chapters.forEach((c, i) => c.classList.toggle("active", i === n));
+    frames.forEach((frame, i) => {
+      if (!frame) return;
+      delete frame.dataset.deck;
+      if (n === 0) {
+        const place = Object.keys(deck).find((key) => deck[key] === i);
+        frame.dataset.state = place ? "deck" : "next";
+        if (place) frame.dataset.deck = place;
+      } else {
+        frame.dataset.state = i === n ? "active" : i < n ? "prev" : "next";
       }
-    }
-    if (best !== current) activate(best);
+    });
+    segments.forEach((segment, i) => {
+      if (!segment) return;
+      segment.classList.toggle("on", i === n);
+      segment.classList.toggle("done", i < n);
+      segment.setAttribute("aria-current", i === n ? "step" : "false");
+    });
+    actLabel.textContent = ACTS[chapter.dataset.act] || "";
+    titleLabel.textContent = chapter.dataset.title;
+    prevButton.disabled = n === 0;
+    nextButton.disabled = n === chapters.length - 1;
   };
 
-  window.addEventListener("scroll", () => {
-    if (!ticking) {
-      ticking = true;
-      requestAnimationFrame(syncFromScroll);
+  const go = (n) => {
+    const target = chapters[Math.max(0, Math.min(chapters.length - 1, n))];
+    target.scrollIntoView({ behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "center" });
+  };
+  prevButton.addEventListener("click", () => go(current - 1));
+  nextButton.addEventListener("click", () => go(current + 1));
+
+  // A chapter becomes the current one when it crosses the middle of the screen.
+  const observer = new IntersectionObserver((entries) => {
+    for (const entry of entries) {
+      if (entry.isIntersecting) activate(chapters.indexOf(entry.target));
     }
-  }, { passive: true });
+  }, { rootMargin: "-48% 0px -48% 0px" });
+  chapters.forEach((chapter) => observer.observe(chapter));
+
+  show.classList.add("staged");
+  activate(0);
 }
