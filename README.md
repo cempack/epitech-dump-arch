@@ -20,7 +20,7 @@
 </p>
 
 <p align="center">
-  <img src="site/assets/predeliver.png" width="760" alt="epitech-predeliver on a my_ls project, flagging an untracked source file, a committed .o, two Banana majors and an unauthorized function">
+  <img src="site/assets/predeliver.png" width="760" alt="epitech-predeliver on a my_ls project, flagging an untracked source file, a committed .o, a prototype in a .c and an unauthorized printf, with the tests passing at 88.9% coverage">
 </p>
 
 Everything the school's `dump.sh` installs, plus Neovim and VS Code set up for
